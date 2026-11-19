@@ -1,0 +1,20 @@
+{
+  "_doc": "Competition rules and agent policy. Edit this file (not code) when the 23 Nov guide changes a rule. Values marked (rule) come from the DoraHacks page or the official starter; (policy) are our choices.",
+
+  "maxSubmissionsPerMarket": 3,
+  "maxLinksPerSubmission": 3,
+  "maxFilesPerSubmission": 3,
+
+  "noteTemplate": "As of {{date}}: {{text}}",
+  "noteMaxChars": 800,
+
+  "qualification": { "judgedSubmissions": 10, "markets": 3 },
+
+  "marketFilter": { "statuses": ["open"], "minYes": 0.05, "maxYes": 0.95 },
+  "cutoffBufferMinutes": 30,
+
+  "oneSidePerMarket": true,
+  "submissionsPerMarketPerCycle": 1,
+  "minVerifyScore": 0.65,
+  "backoffHoursWhenNothingFound": 12
+}

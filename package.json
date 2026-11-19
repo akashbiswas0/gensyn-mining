@@ -1,0 +1,31 @@
+{
+  "name": "delphi-evidence-agent",
+  "version": "1.0.0",
+  "scripts": {
+    "cycle": "tsx src/agent.ts",
+    "loop": "tsx src/agent.ts --loop",
+    "status": "tsx src/status.ts",
+    "typecheck": "tsc --noEmit",
+    "starter": "tsx src/starter-bridge.ts",
+    "sync-starter": "tsx scripts/sync-starter.ts",
+    "inspect-markets": "tsx src/inspect-markets.ts",
+    "sim": "tsx src/agent.ts --sim --markets=delphi",
+    "sim:fixture": "tsx src/agent.ts --sim --markets=fixture",
+    "starter:sim": "tsx src/starter-bridge.ts --sim --markets=delphi",
+    "test:chaos": "tsx scripts/chaos-test.ts",
+    "report": "tsx src/report.ts"
+  },
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.11.0",
+    "@gensyn-ai/gensyn-delphi-sdk": "^2.4.0",
+    "dotenv": "^18.0.10",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

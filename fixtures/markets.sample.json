@@ -1,0 +1,48 @@
+{
+  "_comment": "SAMPLE markets for --dry-run only (not real Delphi markets). Shape follows the official starter's MarketCard: address, question, status, odds, evidenceCutoffAt, dataSources. Extra fields test the adapter.",
+  "markets": [
+    {
+      "address": "0x1111111111111111111111111111111111111111",
+      "question": "Will the US Federal Reserve announce a cut to the federal funds target range at its December 2026 FOMC meeting?",
+      "status": "open",
+      "odds": { "yes": 0.46, "no": 0.54 },
+      "evidenceCutoffAt": "2026-12-09T17:00:00Z",
+      "dataSources": ["https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm"],
+      "description": "Resolves YES if the FOMC statement at the end of the December 2026 meeting lowers the target range.",
+      "rewardPot": 300
+    },
+    {
+      "address": "0x2222222222222222222222222222222222222222",
+      "question": "Will Bitcoin trade above $150,000 on Coinbase at any time before 11 December 2026?",
+      "status": "open",
+      "odds": { "yes": 18, "no": 82 },
+      "evidenceCutoffAt": "2026-12-10T17:00:00Z",
+      "dataSources": ["https://www.coinbase.com/price/bitcoin"]
+    },
+    {
+      "address": "0x3333333333333333333333333333333333333333",
+      "question": "Will COP31 adopt a final decision text by consensus before 23 November 2026?",
+      "status": "open",
+      "odds": { "yes": 0.71, "no": 0.29 },
+      "evidenceCutoffAt": "2026-11-23T12:00:00Z",
+      "dataSources": []
+    },
+    {
+      "address": "0x4444444444444444444444444444444444444444",
+      "question": "SAMPLE settled market (should be skipped)",
+      "status": "settled",
+      "odds": { "yes": 1, "no": 0 },
+      "evidenceCutoffAt": "2026-11-01T00:00:00Z",
+      "dataSources": []
+    },
+    {
+      "address": "0x5555555555555555555555555555555555555555",
+      "question": "Will the 2026 FIFA Club World Cup draw take place before 15 December 2026?",
+      "status": "open",
+      "odds": { "yes": 0.97, "no": 0.03 },
+      "evidenceCutoffAt": "2026-12-11T17:00:00Z",
+      "dataSources": [],
+      "newFieldFromFeed": "shows up in inspect-markets as unmapped"
+    }
+  ]
+}
