@@ -51,7 +51,7 @@ async function main(): Promise<void> {
 
   console.log(`Synced ${DIR} @ ${sha.slice(0, 7)} (${commits[0]?.commit.committer.date ?? "?"}) → ${OUT}/`);
   console.log(`SDK installed ${installed}, latest ${latest}${latest !== "?" && latest !== installed ? "  ← run: npm install @gensyn-ai/gensyn-delphi-sdk@latest" : ""}`);
-  console.log("Next: git diff vendor/  ·  npm run typecheck  ·  npm run starter:offline");
+  console.log("Next: git diff vendor/  ·  npm run typecheck  ·  npm run test:chaos");
 }
 
 main().catch((e) => {
