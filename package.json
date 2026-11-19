@@ -13,7 +13,8 @@
     "sim:fixture": "tsx src/agent.ts --sim --markets=fixture",
     "starter:sim": "tsx src/starter-bridge.ts --sim --markets=delphi",
     "test:chaos": "tsx scripts/chaos-test.ts",
-    "report": "tsx src/report.ts"
+    "report": "tsx src/report.ts",
+    "outcomes": "tsx src/outcomes.ts"
   },
   "type": "module",
   "private": true,

@@ -72,7 +72,8 @@ Its judge is a proxy for the real one: good for comparing versions, not a promis
 | `npm run test:chaos` | 12 generated | simulator + 25% failures | canned ($0) |
 
 Other commands:
-- `npm run report` compares prompt versions on what the judge paid. Add `-- --sim` for simulator results.
+- `npm run outcomes` refreshes submissions from the API and checks how each market actually settled on Delphi (real ground truth for side accuracy). Add `-- --sim` for simulator runs.
+- `npm run report` compares prompt versions on what the judge paid and, after `outcomes`, how often the chosen side was right. Add `-- --sim` for simulator results.
 - `npm run status` shows submissions, verdicts and qualification progress. Add `-- --sim` for simulator results.
 - `npm run inspect-markets` shows how a market feed maps (try `-- --markets=delphi`).
 - `npm run sync-starter` re-pulls the official starter.
@@ -82,7 +83,7 @@ Other commands:
 
 1. Edit `prompts/`, `guide/` or `config/rules.json`. Every change gets a new **prompt version** (a hash), which is recorded on each submission.
 2. Run `npm run sim` (real Delphi markets, real Claude, simulated judge) a few times.
-3. Run `npm run report -- --sim`. It ranks versions by acceptance, reward per submission, cost per submission and reward per dollar.
+3. Run `npm run report -- --sim`. It ranks versions by acceptance, reward per submission, cost per submission and reward per dollar. As those real Delphi markets settle, `npm run outcomes -- --sim` adds whether the chosen side was right, scored against real outcomes rather than the proxy judge.
 4. Keep the best version, run it live, and check `npm run report`, which shows the **real** judge's verdicts.
 
 ### Our runner or the official starter

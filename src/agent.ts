@@ -9,9 +9,8 @@
  *
  * Flags: --markets=competition|delphi|fixture  --sim  --offline  --loop  --cycles=N
  */
-import { TermsNotAcceptedError } from "@gensyn-ai/gensyn-delphi-sdk";
 import { config, describeMode } from "./config.js";
-import { ensureTerms, makeEvidenceClient } from "./lib/evidence.js";
+import { ensureTerms, isFatal, makeEvidenceClient } from "./lib/evidence.js";
 import { BudgetExceeded } from "./lib/llm.js";
 import { event, info } from "./lib/log.js";
 import { promptVersion } from "./lib/version.js";
@@ -34,7 +33,7 @@ async function main(): Promise<void> {
       await cycle(ev);
     } catch (e) {
       event("ERROR", (e as Error).message);
-      if (e instanceof TermsNotAcceptedError) throw e; // terms version changed: a person must read and accept
+      if (isFatal(e)) throw e; // bad key, region block, or new terms: a person must act
       if (e instanceof BudgetExceeded) info("daily budget reached; waiting for the next cycle");
     }
     info(`sleeping ${config.loopIntervalMinutes} min`);

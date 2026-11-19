@@ -3,10 +3,10 @@
  * (The alternative runner is the official starter with our brain plugged in: src/starter-bridge.ts.)
  */
 import type { EvidenceClient, Submission } from "@gensyn-ai/gensyn-delphi-sdk";
-import { EvidenceApiError, TermsNotAcceptedError } from "@gensyn-ai/gensyn-delphi-sdk";
+import { EvidenceApiError } from "@gensyn-ai/gensyn-delphi-sdk";
 import { config, rules } from "./config.js";
 import { findFact, type Proposal } from "./finder.js";
-import { awaitFinal, call, submit } from "./lib/evidence.js";
+import { awaitFinal, call, isFatal, submit } from "./lib/evidence.js";
 import { BudgetExceeded, assertBudget } from "./lib/llm.js";
 import { event, info } from "./lib/log.js";
 import * as state from "./lib/state.js";
@@ -45,6 +45,7 @@ export function recordSubmission(m: Market, p: Proposal, sub: Submission, costUs
     reason: mk?.reason ?? null,
     bounty: mk?.bounty?.amount ?? null,
     bountyState: mk?.bounty?.state ?? null,
+    settlementUpTo: mk?.settlementUpTo ?? null,
     ...(mk?.zeroPayReason ? { zeroPayReason: mk.zeroPayReason } : {}),
   });
   state.save();
@@ -104,7 +105,7 @@ export async function cycle(ev: EvidenceClient): Promise<void> {
         if (!(await processMarket(ev, r.market))) break;
         submitted++;
       } catch (e) {
-        if (e instanceof BudgetExceeded || e instanceof TermsNotAcceptedError) throw e;
+        if (e instanceof BudgetExceeded || isFatal(e)) throw e;
         const msg = e instanceof EvidenceApiError ? `${e.code} ${e.message}${e.requestId ? ` (request ${e.requestId})` : ""}` : (e as Error).message;
         event("ERROR", `${r.market.question}: ${msg}`);
         if (e instanceof EvidenceApiError && e.code === "rate_limited") return; // hourly/daily limit: stop this cycle

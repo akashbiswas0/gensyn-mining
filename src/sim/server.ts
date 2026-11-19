@@ -65,10 +65,16 @@ async function markets(): Promise<Map<string, Market>> {
 
 /* ------------------------------- helpers ------------------------------- */
 
+// Response shapes follow the SDK's own contract tests (tests/client/evidence.test.ts in the SDK repo).
+const CONTRACT = "sim-1.0.0";
+let warnings = "";
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
-  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "X-Request-Id": randomUUID(), ...headers } });
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", "X-Request-Id": randomUUID(), "X-Contract-Version": CONTRACT, ...(warnings ? { "X-Delphi-Warnings": warnings } : {}), ...headers },
+  });
 const err = (status: number, code: string, message: string, extra: Record<string, unknown> = {}) =>
-  json(status, { error: { code, message, retryable: status >= 500 || code === "rate_limited", retryAfterSeconds: null, field: null, limit: null, ...extra } },
+  json(status, { error: { code, message, retryable: status >= 500 || code === "rate_limited", retryAfterSeconds: null, field: null, limit: null, ...extra }, requestId: randomUUID() },
     extra.retryAfterSeconds ? { "Retry-After": String(extra.retryAfterSeconds) } : {});
 const HOUR = 3_600_000;
 const normUrl = (u: string) => { try { const x = new URL(u); return (x.hostname.replace(/^www\./, "") + x.pathname.replace(/\/+$/, "")).toLowerCase(); } catch { return u; } };
@@ -137,6 +143,9 @@ export const simFetch: typeof fetch = async (input, init) => {
   const p = url.pathname.replace(/^\/v1/, "");
   const method = init?.method ?? "GET";
   const s = load();
+  const h = new Headers(init?.headers);
+  warnings = ["X-Agent-Id", "X-Agent-Harness", "X-Agent-Model"].filter((k) => !h.get(k)).map((k) => `missing ${k}`).join(", ");
+  if (h.get("Authorization") !== "Bearer sim") return err(401, "unauthorized", "invalid API key");
 
   // Chaos: transient failures any client must survive.
   if (S.chaos > 0 && Math.random() < S.chaos) {
@@ -163,7 +172,7 @@ export const simFetch: typeof fetch = async (input, init) => {
   const entry = p.match(/^\/markets\/([^/]+)\/entry-state$/);
   if (entry) {
     const key = decodeURIComponent(entry[1]!).toLowerCase();
-    if (!(await markets()).has(key)) return err(404, "market_not_found", "no such market");
+    if (!(await markets()).has(key)) return err(404, "market_not_found", "no such market", { field: "marketAddress" });
     const used = s.subs.filter((x) => x.market === key).length;
     const left = Math.max(0, rules.maxSubmissionsPerMarket - used);
     return json(200, {
@@ -190,7 +199,7 @@ export const simFetch: typeof fetch = async (input, init) => {
     if (!note.trim() || note.length > S.noteMax) return err(400, "invalid_request", `note must be 1-${S.noteMax} characters`, { field: "note" });
     if (links.length > S.maxLinks || links.some((l) => !/^https?:\/\//.test(l))) return err(400, "invalid_request", `up to ${S.maxLinks} http(s) links`, { field: "links" });
     if (files > rules.maxFilesPerSubmission) return err(400, "invalid_request", "too many files", { field: "files" });
-    if (market && !(await markets()).has(market)) return err(404, "market_not_found", "marketAddress is not a competition market");
+    if (market && !(await markets()).has(market)) return err(404, "market_not_found", "marketAddress is not a competition market", { field: "marketAddress" });
     if (market && s.subs.filter((x) => x.market === market).length >= rules.maxSubmissionsPerMarket) return err(429, "cap_reached", "all submissions used on this market", { retryable: false });
     const hour = usedThisHour(s);
     if (hour.length >= S.hourly) {

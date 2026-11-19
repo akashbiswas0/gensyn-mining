@@ -20,6 +20,10 @@ export interface SubmissionRecord {
   promptVersion?: string;
   /** Claude spend (USD) on the research and fact-check that produced this submission. */
   costUsd?: number;
+  /** Upper bound of the settlement reward, as reported at judging (USDC.e base units). */
+  settlementUpTo?: string | null;
+  /** Once the market settles: did this submission point the right way? */
+  outcome?: "right" | "wrong" | "void";
 }
 
 export interface MarketState {
@@ -31,11 +35,15 @@ export interface MarketState {
   skipUntil?: string;
   /** Short notes the researcher should not repeat (things it already found but didn't submit). */
   seenClaims: string[];
+  /** Filled by `npm run outcomes` once the market has a final status. */
+  resolved?: { status: string; winner: Direction | null; checkedAt: string };
 }
 
 interface State {
   markets: Record<string, MarketState>;
   spendByDay: Record<string, number>;
+  /** Last X-Contract-Version the evidence API reported; a change means the API changed. */
+  apiContractVersion?: string;
 }
 
 const file = () => path.join(config.dataDir, "state.json");

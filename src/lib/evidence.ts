@@ -9,10 +9,11 @@
  *   awaitFinal()    polls to a terminal status and retries `failed` submissions that allow it
  */
 import { randomUUID } from "node:crypto";
-import { EvidenceApiError, EvidenceClient, TermsNotAcceptedError, type Submission, type SubmitEvidenceParams } from "@gensyn-ai/gensyn-delphi-sdk";
+import { EvidenceApiError, EvidenceClient, TermsNotAcceptedError, type EvidenceMeta, type Submission, type SubmitEvidenceParams } from "@gensyn-ai/gensyn-delphi-sdk";
 import { config, requireLive } from "../config.js";
 import { simFetch } from "../sim/server.js";
-import { info } from "./log.js";
+import { event, info } from "./log.js";
+import * as state from "./state.js";
 
 export function makeEvidenceClient(): EvidenceClient {
   const headers = {
@@ -27,10 +28,23 @@ export function makeEvidenceClient(): EvidenceClient {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Network errors (fetch throws TypeError) and retryable API errors are transient. */
+/** Longest wait we'll sit through inside one call. Longer Retry-After (e.g. the hourly limit,
+ *  which the API marks retryable with Retry-After up to ~20 min) ends the cycle instead. */
+const MAX_INLINE_WAIT_S = 60;
+
+/** Errors that must stop the agent, not just skip a market: bad key, region block, terms. */
+export function isFatal(e: unknown): boolean {
+  return e instanceof TermsNotAcceptedError || (e instanceof EvidenceApiError && ["unauthorized", "forbidden"].includes(e.code));
+}
+
+/** Network errors (fetch throws TypeError) and short-wait retryable API errors are transient. */
 export function isTransient(e: unknown): boolean {
-  if (e instanceof TermsNotAcceptedError) return false;
-  if (e instanceof EvidenceApiError) return e.retryable && !(e.code === "rate_limited" && e.limit && e.limit !== "call_rate");
+  if (isFatal(e)) return false;
+  if (e instanceof EvidenceApiError) {
+    if (!e.retryable) return false;
+    if (e.code === "rate_limited" && e.limit && e.limit !== "call_rate") return false; // hourly/daily/bytes limits
+    return (e.retryAfterSeconds ?? 0) <= MAX_INLINE_WAIT_S;
+  }
   return e instanceof TypeError;
 }
 
@@ -72,7 +86,8 @@ export async function awaitFinal(ev: EvidenceClient, sub: Submission, maxRetries
 
 /** Same policy as the starter: never accept terms unless ACCEPT_TERMS names the current version. */
 export async function ensureTerms(ev: EvidenceClient): Promise<void> {
-  const { data: terms } = await call("terms", () => ev.getTerms());
+  const { data: terms, meta } = await call("terms", () => ev.getTerms());
+  checkContract(meta);
   if (terms.acceptedAt) return;
   if (config.acceptTerms === terms.version) {
     await call("accept terms", () => ev.acceptTerms(terms.version));
@@ -109,4 +124,18 @@ export function resilient(ev: EvidenceClient): EvidenceClient {
       return (...a: unknown[]) => call(String(prop), () => (v as (...x: unknown[]) => Promise<unknown>).apply(target, a));
     },
   });
+}
+
+/** The API reports its contract version and any warnings (e.g. a missing X-Agent-* header) in headers. */
+export function checkContract(meta: EvidenceMeta): void {
+  if (meta.warnings) event("ERROR", `API warning: ${meta.warnings}`);
+  if (!meta.contractVersion) return;
+  const st = state.load();
+  if (st.apiContractVersion && st.apiContractVersion !== meta.contractVersion) {
+    event("ERROR", `Evidence API contract changed ${st.apiContractVersion} → ${meta.contractVersion}: re-run npm run sync-starter, check the SDK and the guide`);
+  } else if (!st.apiContractVersion) {
+    info(`evidence API contract ${meta.contractVersion}`);
+  }
+  st.apiContractVersion = meta.contractVersion;
+  state.save();
 }

@@ -77,10 +77,17 @@ const unwrap = (body: unknown, from: string): Obj[] => {
   return list.filter(isObj);
 };
 
+let _delphi: DelphiClient | null = null;
+/** Read-only Delphi REST client (no wallet needed) for DELPHI_MARKETS_NETWORK, or null without a key. */
+export function delphiReader(): DelphiClient | null {
+  if (!config.delphiMarketsApiKey) return null;
+  return (_delphi ??= new DelphiClient({ network: config.delphiMarketsNetwork, apiKey: config.delphiMarketsApiKey }));
+}
+
 /** Real live Delphi markets, reshaped into starter cards. Only Yes/No markets (the competition's kind). */
 async function delphiCards(): Promise<Obj[]> {
-  if (!config.delphiMarketsApiKey) throw new Error("--markets=delphi needs DELPHI_MARKETS_API_KEY (or DELPHI_API_ACCESS_KEY) for the " + config.delphiMarketsNetwork + " Delphi API");
-  const client = new DelphiClient({ network: config.delphiMarketsNetwork, apiKey: config.delphiMarketsApiKey });
+  const client = delphiReader();
+  if (!client) throw new Error("--markets=delphi needs DELPHI_MARKETS_API_KEY (or DELPHI_API_ACCESS_KEY) for the " + config.delphiMarketsNetwork + " Delphi API");
   const { markets } = await client.listMarkets({ status: "open", limit: 100, orderBy: "liquidity", pricesAndImpliedProbabilities: true });
   const cards: Obj[] = [];
   for (const m of markets ?? []) {
@@ -127,7 +134,37 @@ export const siteFetch: typeof fetch = async (input, init) => {
 };
 
 export async function loadMarkets(): Promise<Market[]> {
-  return (await fetchMarketCards()).map(normalise).filter((m): m is Market => m !== null);
+  const markets = (await fetchMarketCards()).map(normalise).filter((m): m is Market => m !== null);
+  if (config.marketSource === "competition") await enrichFromDelphi(markets);
+  return markets;
+}
+
+const enriched = new Map<string, { description: string; closesAt: Date | null } | null>();
+/**
+ * If competition markets are also Delphi markets, the Delphi API has the settlement oracle's own
+ * context (metadata.model.prompt_context) and the settlement time. Fill them in where
+ * /markets.json lacks them. Best effort: no key, a different network, or a 404 just means no extra detail.
+ */
+async function enrichFromDelphi(markets: Market[]): Promise<void> {
+  const client = delphiReader();
+  if (!client) return;
+  await Promise.all(
+    markets.filter((m) => !m.description || !m.closesAt).map(async (m) => {
+      if (!enriched.has(m.address)) {
+        try {
+          const d = await client.getMarket({ id: m.address });
+          enriched.set(m.address, { description: d.metadata?.model?.prompt_context ?? "", closesAt: d.settlesAt ? new Date(d.settlesAt) : null });
+        } catch {
+          enriched.set(m.address, null);
+        }
+      }
+      const e = enriched.get(m.address);
+      if (e) {
+        m.description ||= e.description;
+        m.closesAt ??= e.closesAt;
+      }
+    }),
+  );
 }
 
 export function describeMarket(m: Market): string {
