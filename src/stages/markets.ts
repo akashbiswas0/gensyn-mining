@@ -10,6 +10,7 @@
  */
 import fs from "node:fs";
 import { DelphiClient } from "@gensyn-ai/gensyn-delphi-sdk";
+import { generatePrivateKey } from "viem/accounts";
 import { config } from "../config.js";
 import type { Market, MarketCard } from "../types.js";
 
@@ -81,7 +82,15 @@ let _delphi: DelphiClient | null = null;
 /** Read-only Delphi REST client (no wallet needed) for DELPHI_MARKETS_NETWORK, or null without a key. */
 export function delphiReader(): DelphiClient | null {
   if (!config.delphiMarketsApiKey) return null;
-  return (_delphi ??= new DelphiClient({ network: config.delphiMarketsNetwork, apiKey: config.delphiMarketsApiKey }));
+  // Live prices are read on-chain through the SDK's signer object, which otherwise demands a
+  // Coinbase wallet. Reads never sign anything, so a random in-memory key (no funds, never
+  // saved, never used to send a transaction) is enough. Your real wallet is not involved.
+  return (_delphi ??= new DelphiClient({
+    network: config.delphiMarketsNetwork,
+    apiKey: config.delphiMarketsApiKey,
+    signerType: "private_key",
+    privateKey: generatePrivateKey(),
+  }));
 }
 
 /** Real live Delphi markets, reshaped into starter cards. Only Yes/No markets (the competition's kind). */

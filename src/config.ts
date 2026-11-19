@@ -67,7 +67,7 @@ export const config = {
   agentHarness: env("AGENT_HARNESS") || "delphi-evidence-agent-ts",
 
   /** For --markets=delphi: a Delphi API key for that network (testnet: delphi-api-access.gensyn.ai, mainnet: api-access.delphi.fyi). */
-  delphiMarketsNetwork: (env("DELPHI_MARKETS_NETWORK") || "mainnet") as "mainnet" | "testnet",
+  delphiMarketsNetwork: (env("DELPHI_MARKETS_NETWORK") || "testnet") as "mainnet" | "testnet",
   delphiMarketsApiKey: env("DELPHI_MARKETS_API_KEY", "DELPHI_API_ACCESS_KEY"),
 
   researchModel: env("RESEARCH_MODEL") || "claude-opus-5-5",
