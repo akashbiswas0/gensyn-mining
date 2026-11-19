@@ -37,6 +37,9 @@ const VerifySchema = z.object({
   directionCorrect: z.boolean(),
   novelty: z.number().describe("0-1"),
   relevance: z.number().describe("0-1"),
+  publicSource: z.boolean().describe("Public, no login or paywall, allowed to read under the site's terms"),
+  noPrivatePersonalData: z.boolean().describe("No personal data about private individuals"),
+  notConfidential: z.boolean().describe("Not confidential or leaked material"),
   issues: z.array(z.string()),
   factDate: z.string().describe("ISO date the fact is true on"),
   factText: z.string().describe("The fact text to submit, without the date prefix"),
@@ -106,13 +109,19 @@ async function verify(m: Market, c: Candidate): Promise<Verification> {
   const v = await extract(VerifySchema, prompt("verify.extract", { report: run.text }), config.verifyModel);
   const novelty = clamp01(v.novelty);
   const relevance = clamp01(v.relevance);
-  const ok = v.supported && v.dateConfirmed && v.directionCorrect;
+  // Pilot Terms, "Fair play": any policy failure blocks the fact outright, whatever its value.
+  const policy = [
+    !v.publicSource && "source is not public / needs login or paywall / site terms",
+    !v.noPrivatePersonalData && "contains personal data about a private individual",
+    !v.notConfidential && "confidential or leaked material",
+  ].filter((x): x is string => Boolean(x));
+  const ok = v.supported && v.dateConfirmed && v.directionCorrect && policy.length === 0;
   return {
     ...v,
     novelty,
     relevance,
     score: ok ? 0.5 * novelty + 0.5 * relevance : 0,
-    issues: v.directionCorrect ? v.issues : ["direction does not hold", ...v.issues],
+    issues: [...policy.map((x) => `POLICY: ${x}`), ...(v.directionCorrect ? [] : ["direction does not hold"]), ...v.issues],
     factDate: v.factDate || c.eventDate,
   };
 }

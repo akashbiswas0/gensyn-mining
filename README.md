@@ -115,11 +115,11 @@ The chaos test found that the unmodified starter exits with an error on the hour
 7. **First live run, small.** Run `MARKETS_PER_CYCLE=1 npm run cycle`, read the judge's rationale with `npm run status`, and tune `prompts/` and `minVerifyScore` through the simulator.
 8. **Feedback bounties.** Errors collect in `data/feedback-notes.md`. Send the useful ones through the feedback API or form (5 × $250).
 
-## Rules the code enforces
+## Rules and eligibility
 
-- **Content:** public information only. Every claim needs a source URL and a verbatim quote, and the fact-check pass reopens the sources.
-- **Terms:** never accepted automatically. You set `ACCEPT_TERMS` to the version you read, which is the starter's own policy.
-- **Sides:** one side per market (`oneSidePerMarket`), because evidence for both sides cancels out.
-- **Duplicates:** facts from a repeated source or similar to an earlier note are dropped before paying to fact-check them.
-- **Limits:** per-market limit, hourly and daily caps from `/limits`, and the daily Claude budget.
-- **Qualification:** progress is shown in `npm run status` (10 judged submissions on 3+ markets).
+See **[COMPLIANCE.md](COMPLIANCE.md)**. It maps every rule in the Pilot Terms and on the DoraHacks page to how it's enforced, and lists what you must do yourself. Key guards:
+- Live runs refuse canned research, test markets or a placeholder `AGENT_ID`.
+- The fact-check has a policy check: public source, no private personal data, nothing confidential.
+- A final lint blocks notes that address the judge.
+- The evidence cutoff is re-checked right before submitting.
+- `--review` lets you approve each submission.

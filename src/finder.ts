@@ -5,7 +5,8 @@
  */
 import { config, rules } from "./config.js";
 import { event, info } from "./lib/log.js";
-import { formatNote } from "./lib/note.js";
+import readline from "node:readline/promises";
+import { formatNote, lintNote } from "./lib/note.js";
 import * as state from "./lib/state.js";
 import { stages } from "./stages/index.js";
 import type { Candidate, Market, Verification } from "./types.js";
@@ -81,8 +82,36 @@ export async function findFact(m: Market): Promise<Proposal | null> {
       state.save();
       continue;
     }
+    const proposal = { candidate: c, verification: v, note: formatNote(v.factDate, v.factText), links: c.sourceUrls.slice(0, rules.maxLinksPerSubmission) };
+    const blocked = await preSubmitGate(m, proposal);
+    if (blocked) {
+      event("SKIP", `Blocked before submit (${blocked}): ${proposal.note}`);
+      s.seenClaims.push(c.claim);
+      state.save();
+      continue;
+    }
     event("THINK", `Chose ${c.direction.toUpperCase()} fact for "${m.question}": ${c.whyItMatters} (novelty ${v.novelty.toFixed(2)}, relevance ${v.relevance.toFixed(2)})`);
-    return { candidate: c, verification: v, note: formatNote(v.factDate, v.factText), links: c.sourceUrls.slice(0, rules.maxLinksPerSubmission) };
+    return proposal;
+  }
+  return null;
+}
+
+/** Last checks on the exact submission, shared by our runner and the starter bridge. Returns a reason to block, or null. */
+async function preSubmitGate(m: Market, p: Proposal): Promise<string | null> {
+  // Canned research only exists to test plumbing against the simulator; its placeholder text is expected there.
+  const lint = config.offline && config.sim ? [] : lintNote(p.note, p.links);
+  if (lint.length) return lint.join("; ");
+
+  // Research can take minutes; the evidence cutoff may have passed meanwhile.
+  if (m.evidenceCutoff && m.evidenceCutoff.getTime() - Date.now() < 60_000) return "evidence cutoff passed during research";
+
+  if (config.review) {
+    if (!process.stdin.isTTY) return "--review needs an interactive terminal";
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    console.log(`\n── Review submission ──\nMarket: ${m.question}\nSide:   ${p.candidate.direction.toUpperCase()}\nNote:   ${p.note}\nLinks:  ${p.links.join("  ")}\nCheck:  novelty ${p.verification.novelty.toFixed(2)}, relevance ${p.verification.relevance.toFixed(2)}${p.verification.issues.length ? `, notes: ${p.verification.issues.join("; ")}` : ""}`);
+    const answer = (await rl.question("Submit this? [y/N] ")).trim().toLowerCase();
+    rl.close();
+    if (answer !== "y" && answer !== "yes") return "declined in review";
   }
   return null;
 }

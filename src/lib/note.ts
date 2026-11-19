@@ -17,3 +17,20 @@ export function textBudget(): number {
 }
 
 export const noteShape = () => `"${rules.noteTemplate}"`;
+
+/**
+ * Deterministic last check on the exact text we send (Pilot Terms: no attempts to trick the
+ * judge; real, sourced information). Returns problems; empty means OK.
+ */
+export function lintNote(note: string, links: string[]): string[] {
+  const problems: string[] = [];
+  const addressesJudge =
+    /\b(ignore (all|any|the|previous)|disregard|system prompt|you (must|should) (rate|score|accept|update|raise|lower)|as an ai|(dear|to the) (judge|forecaster|model)|rate this|score this|instructions?:)/i;
+  if (addressesJudge.test(note)) problems.push("note addresses or instructs the judge");
+  if (/<\/?[a-z_]+>|\{\{|\}\}/i.test(note)) problems.push("note contains markup or template tokens");
+  if (!/\b20\d\d-\d\d-\d\d\b/.test(note)) problems.push("note has no ISO date");
+  if (!links.length) problems.push("no source link");
+  if (links.some((l) => !/^https?:\/\//.test(l))) problems.push("source links must be http(s) URLs");
+  if (/\[OFFLINE|canned|placeholder|lorem ipsum|example\.(com|org|net)/i.test(note + links.join(" "))) problems.push("test/placeholder content");
+  return problems;
+}

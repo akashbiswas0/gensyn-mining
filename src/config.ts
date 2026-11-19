@@ -54,6 +54,8 @@ export const config = {
   sim,
   offline: flag("offline") || env("RESEARCH") === "canned",
   loop: flag("loop"),
+  /** --review: show each submission and ask before sending (you are responsible for what the agent submits). */
+  review: flag("review") || env("REVIEW") === "1",
   cycles: num(opt("cycles") ?? "", 1),
 
   // Same variable names as the official starter (older names still accepted).
@@ -95,9 +97,20 @@ export function describeMode(): string {
   ].join(" · ");
 }
 
+/**
+ * Hard guards before anything reaches the real Delphi API (Pilot Terms, "Fair play"):
+ *  - canned research is invented text: submitting it live would be fabricated evidence
+ *  - fixture/Delphi markets aren't competition markets: rewards there don't count, so live
+ *    submissions to them would only burn limits
+ *  - results must show under the agent name registered on DoraHacks (X-Agent-Id)
+ */
 export function requireLive(): void {
-  const missing = [!config.apiUrl && "DELPHI_API_URL", !config.apiKey && "DELPHI_API_ACCESS_KEY"].filter(Boolean);
-  if (missing.length) {
-    throw new Error(`Missing ${missing.join(", ")} in .env (published on 23 Nov). Until then add --sim.`);
-  }
+  const problems = [
+    !config.apiUrl && "DELPHI_API_URL is not set (published on 23 Nov)",
+    !config.apiKey && "DELPHI_API_ACCESS_KEY is not set (published on 23 Nov)",
+    config.offline && "--offline (canned research) can never submit live: it would be fabricated evidence",
+    config.marketSource !== "competition" && `--markets=${config.marketSource} is for testing only: live submissions must go to competition markets`,
+    (!process.env.AGENT_ID || process.env.AGENT_ID === "my-evidence-agent") && "set AGENT_ID in .env to the agent name you registered on DoraHacks",
+  ].filter(Boolean);
+  if (problems.length) throw new Error(`Refusing to submit live:\n- ${problems.join("\n- ")}\n(Add --sim to test against the simulator.)`);
 }
