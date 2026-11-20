@@ -1,19 +1,25 @@
 /**
- * npm run sync-starter
+ * npm run sync-starter   (alias: npm run sync-official)
  *
- * Pulls the official evidence starter agent from the SDK repo (examples/evidence-starter) into
- * vendor/evidence-starter/, rewriting its SDK import to the npm package so it runs here.
- * Run it again on 23 Nov (and whenever the organisers update it), then `git diff vendor/` shows
- * what changed. Also reports whether a newer SDK is published.
+ * Pulls the organisers' material and shows what changed (`git diff vendor/ guide/`):
+ *  1. The official starter agent (SDK repo, examples/evidence-starter) → vendor/evidence-starter/,
+ *     its SDK import rewritten to the npm package so it runs here.
+ *  2. The official competition docs (skills repo, reference/*.md) → vendor/delphi-skills/.
+ *  3. From those docs, the parts the model must follow → guide/official-*.md, which are injected
+ *     into the research and fact-check prompts:
+ *       official-evidence.md  = reference/evidence.md (what earns, how to write a submission)
+ *       official-rules.md     = the Markets, Rewards, Ranking, Limits and Rules sections of competition.md
+ * Also reports whether a newer SDK is published.
  */
 import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-const REPO = "gensyn-ai/gensyn-delphi-sdk";
-const DIR = "examples/evidence-starter";
-const OUT = "vendor/evidence-starter";
-const FILES = ["agent.ts", "README.md"];
+const SDK_REPO = "gensyn-ai/gensyn-delphi-sdk";
+const STARTER_DIR = "examples/evidence-starter";
+const SKILLS_REPO = "gensyn-ai/gensyn-delphi-skills";
+const DOCS = ["reference/competition.md", "reference/evidence.md", "reference/evidence-api.md", "reference/feedback.md", "docs/agent-competition/README.md", "docs/agent-competition/faq.md"];
+const RULE_SECTIONS = ["Markets", "Rewards", "Ranking and prizes", "Limits", "Rules"];
 
 async function get(url: string): Promise<string> {
   const res = await fetch(url, { headers: { "User-Agent": "evidence-agent-sync" } });
@@ -21,37 +27,66 @@ async function get(url: string): Promise<string> {
   return res.text();
 }
 
-async function main(): Promise<void> {
-  const commits = JSON.parse(await get(`https://api.github.com/repos/${REPO}/commits?path=${DIR}&per_page=1`)) as {
-    sha: string;
-    commit: { committer: { date: string } };
-  }[];
-  const sha = commits[0]?.sha ?? "main";
+async function latestSha(repo: string, p: string): Promise<{ sha: string; date?: string }> {
+  const commits = JSON.parse(await get(`https://api.github.com/repos/${repo}/commits?path=${p}&per_page=1`)) as { sha: string; commit: { committer: { date: string } } }[];
+  return { sha: commits[0]?.sha ?? "main", date: commits[0]?.commit.committer.date };
+}
 
-  fs.mkdirSync(OUT, { recursive: true });
-  for (const f of FILES) {
-    let text = await get(`https://raw.githubusercontent.com/${REPO}/${sha}/${DIR}/${f}`);
+/** The `## <title>` sections of a markdown file, in the order asked. */
+function sections(md: string, titles: string[]): string {
+  const parts = md.split(/^(?=## )/m);
+  return titles
+    .map((t) => parts.find((p) => p.startsWith(`## ${t}\n`)))
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+}
+
+async function main(): Promise<void> {
+  // 1. Starter
+  const starter = await latestSha(SDK_REPO, STARTER_DIR);
+  fs.mkdirSync("vendor/evidence-starter", { recursive: true });
+  for (const f of ["agent.ts", "README.md"]) {
+    let text = await get(`https://raw.githubusercontent.com/${SDK_REPO}/${starter.sha}/${STARTER_DIR}/${f}`);
     if (f.endsWith(".ts")) {
-      // The example imports the SDK from the repo's src/; here it comes from node_modules.
       text = text.replace(/from\s+["'](\.\.\/)+src\/index\.js["']/g, 'from "@gensyn-ai/gensyn-delphi-sdk"');
-      text = `// VENDORED from github.com/${REPO}/blob/${sha}/${DIR}/${f}\n// Do not edit: re-run \`npm run sync-starter\`. Our research plugs in via src/starter-bridge.ts.\n${text}`;
+      text = `// VENDORED from github.com/${SDK_REPO}/blob/${starter.sha}/${STARTER_DIR}/${f}\n// Do not edit: re-run \`npm run sync-starter\`. Our research plugs in via src/starter-bridge.ts.\n${text}`;
     }
-    fs.writeFileSync(path.join(OUT, f), text);
+    fs.writeFileSync(path.join("vendor/evidence-starter", f), text);
   }
 
+  // 2. Official docs
+  const docs = await latestSha(SKILLS_REPO, "reference");
+  const got: Record<string, string> = {};
+  for (const d of DOCS) {
+    got[d] = await get(`https://raw.githubusercontent.com/${SKILLS_REPO}/${docs.sha}/${d}`);
+    const out = path.join("vendor/delphi-skills", d);
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    fs.writeFileSync(out, got[d]);
+  }
+  const version = got["reference/competition.md"]!.match(/Docs version:\s*[\d.]+\s*\([^)]*\)/)?.[0] ?? "Docs version: unknown";
+
+  // 3. Guide files for the prompts (organisers' text, verbatim)
+  const header = (src: string) => `<!-- VERBATIM from github.com/${SKILLS_REPO}/blob/${docs.sha.slice(0, 7)}/${src} (${version}). Regenerated by npm run sync-starter; do not edit. -->\n`;
+  fs.writeFileSync("guide/official-evidence.md", header("reference/evidence.md") + got["reference/evidence.md"]!.replace(/^Load this before[^\n]*\n\n/m, ""));
+  fs.writeFileSync("guide/official-rules.md", header("reference/competition.md") + sections(got["reference/competition.md"]!, RULE_SECTIONS) + "\n");
+
+  // Versions
   const installed = JSON.parse(fs.readFileSync("node_modules/@gensyn-ai/gensyn-delphi-sdk/package.json", "utf8")).version;
   let latest = "?";
   try {
     latest = execSync("npm view @gensyn-ai/gensyn-delphi-sdk version", { encoding: "utf8" }).trim();
   } catch { /* offline */ }
   fs.writeFileSync(
-    path.join(OUT, "SOURCE.json"),
-    JSON.stringify({ repo: REPO, path: DIR, sha, committedAt: commits[0]?.commit.committer.date, syncedAt: new Date().toISOString(), sdkInstalled: installed }, null, 2) + "\n",
+    "vendor/SOURCE.json",
+    JSON.stringify({ starter: { repo: SDK_REPO, sha: starter.sha, committedAt: starter.date }, docs: { repo: SKILLS_REPO, sha: docs.sha, committedAt: docs.date, version }, sdkInstalled: installed }, null, 2) + "\n",
   );
+  fs.rmSync("vendor/evidence-starter/SOURCE.json", { force: true });
 
-  console.log(`Synced ${DIR} @ ${sha.slice(0, 7)} (${commits[0]?.commit.committer.date ?? "?"}) → ${OUT}/`);
+  console.log(`starter  ${starter.sha.slice(0, 7)} (${starter.date ?? "?"})`);
+  console.log(`docs     ${docs.sha.slice(0, 7)} (${docs.date ?? "?"}) · ${version}`);
   console.log(`SDK installed ${installed}, latest ${latest}${latest !== "?" && latest !== installed ? "  ← run: npm install @gensyn-ai/gensyn-delphi-sdk@latest" : ""}`);
-  console.log("Next: git diff vendor/  ·  npm run typecheck  ·  npm run test:chaos");
+  console.log("Next: git diff vendor/ guide/  ·  read the changelog at the end of vendor/delphi-skills/reference/competition.md  ·  npm run typecheck && npm run test:chaos");
 }
 
 main().catch((e) => {

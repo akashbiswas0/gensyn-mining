@@ -41,6 +41,8 @@ const VerifySchema = z.object({
   noPrivatePersonalData: z.boolean().describe("No personal data about private individuals"),
   notConfidential: z.boolean().describe("Not confidential or leaked material"),
   issues: z.array(z.string()),
+  sourceMayBeUnreadable: z.boolean().describe("The judge may be unable to open the main source"),
+  workingCsv: z.string().describe("Inputs and working as CSV, header row first; empty if nothing was calculated"),
   factDate: z.string().describe("ISO date the fact is true on"),
   factText: z.string().describe("The fact text to submit, without the date prefix"),
 });

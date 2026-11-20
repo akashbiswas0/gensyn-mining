@@ -58,6 +58,17 @@ export interface Verification {
   issues: string[];
   factDate: string;
   factText: string;
+  /** Inputs and working of a calculation as CSV ("" if none). Attached as working.csv. */
+  workingCsv: string;
+  /** The judge may not be able to open the main source (JS page, bot-blocked, login, huge). */
+  sourceMayBeUnreadable: boolean;
+}
+
+/** A file to attach to a submission. */
+export interface Attachment {
+  name: string;
+  type: string;
+  data: Uint8Array;
 }
 
 export interface ResearchResult {

@@ -4,7 +4,7 @@
  *   delphi       real live Delphi Yes/No markets via the SDK's DelphiClient.listMarkets
  *   fixture      fixtures/markets.sample.json
  * Cards are then normalised into `Market`. Starter fields (address, question, status, odds, evidenceCutoffAt,
- * dataSources) are read first; other likely names are fallbacks. If 23 Nov brings new fields
+ * dataSources) are read first; other likely names are fallbacks. If the live feed has new fields
  * (e.g. a reward pot or description), `npm run inspect-markets` lists them; add them to KNOWN
  * and to `normalise()`.
  */
@@ -133,7 +133,7 @@ export async function fetchMarketCards(): Promise<Obj[]> {
 /**
  * fetch for the competition site, handed to the official starter. For the competition source it is
  * the real fetch; for delphi/fixture it serves /markets.json from that source, so the starter runs
- * unchanged on real Delphi markets before 23 Nov.
+ * unchanged on real Delphi markets before 25 Nov.
  */
 export const siteFetch: typeof fetch = async (input, init) => {
   if (config.marketSource === "competition") return fetch(input, init);

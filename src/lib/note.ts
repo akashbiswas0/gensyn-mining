@@ -3,7 +3,7 @@ import { rules } from "../config.js";
 import { render } from "./prompts.js";
 
 export function formatNote(date: string, text: string): string {
-  const note = render(rules.noteTemplate, { date, text: text.trim() });
+  const note = render(rules.noteTemplate, { date, text: text.trim() }).slice(0, rules.noteHardMaxChars);
   if (note.length <= rules.noteMaxChars) return note;
   // Cut at the last sentence end that fits, else hard-cut.
   const cut = note.slice(0, rules.noteMaxChars);

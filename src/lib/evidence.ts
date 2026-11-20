@@ -66,11 +66,24 @@ export async function submit(ev: EvidenceClient, p: Omit<SubmitEvidenceParams, "
   return call("submit", () => ev.submitEvidence({ ...p, idempotencyKey }));
 }
 
-export async function awaitFinal(ev: EvidenceClient, sub: Submission, maxRetries = 3): Promise<Submission> {
+/**
+ * Polls to a final status, following Retry-After (30 s when there is none), for at most
+ * `maxMinutes` (the guide says about 30). A result still pending then is returned as is: it stays
+ * recorded as queued/judging and `npm run outcomes` reads it again later. Failed judgments are
+ * retried automatically by Delphi first; we retry only `failed` + `canRetry`.
+ */
+export async function awaitFinal(ev: EvidenceClient, sub: Submission, maxMinutes = 30, maxRetries = 3): Promise<Submission> {
   let current = sub;
+  const deadline = Date.now() + maxMinutes * 60_000;
   for (let retries = 0; ; ) {
     if (current.status === "queued" || current.status === "judging") {
-      current = (await call("poll", () => ev.waitForSubmission(current.id, { timeoutMs: 10 * 60_000 }))).data;
+      try {
+        current = (await call("poll", () => ev.waitForSubmission(current.id, { timeoutMs: Math.max(1000, deadline - Date.now()), defaultIntervalMs: 30_000 }))).data;
+      } catch (e) {
+        if (!/Timed out waiting/.test((e as Error).message)) throw e;
+        info(`submission ${current.id} still ${current.status} after ${maxMinutes} min; leaving it pending (npm run outcomes re-reads it)`);
+        return current;
+      }
     }
     if (current.status === "failed" && current.canRetry && retries < maxRetries) {
       retries++;

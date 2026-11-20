@@ -20,7 +20,7 @@ for (const m of Object.values(s.markets)) {
     const r = rows.get(v) ?? { n: 0, judged: 0, accepted: 0, paid: 0, reward: 0, cost: 0, costN: 0, right: 0, wrong: 0, first: x.at, last: x.at };
     r.n++;
     if (x.status === "judged") r.judged++;
-    if (x.verdict === "accepted") r.accepted++;
+    if (/^accepted$/i.test(x.verdict ?? "")) r.accepted++;
     if (x.outcome === "right") r.right++;
     if (x.outcome === "wrong") r.wrong++;
     const amt = x.bounty ? Number(x.bounty) / 1e6 : 0;

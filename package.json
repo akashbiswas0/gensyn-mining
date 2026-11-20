@@ -14,7 +14,9 @@
     "starter:sim": "tsx src/starter-bridge.ts --sim --markets=delphi",
     "test:chaos": "tsx scripts/chaos-test.ts",
     "report": "tsx src/report.ts",
-    "outcomes": "tsx src/outcomes.ts"
+    "outcomes": "tsx src/outcomes.ts",
+    "sync-official": "tsx scripts/sync-starter.ts",
+    "feedback": "tsx src/feedback.ts"
   },
   "type": "module",
   "private": true,

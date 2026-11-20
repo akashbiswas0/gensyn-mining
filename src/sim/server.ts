@@ -23,12 +23,13 @@ const n = (k: string, d: number) => (process.env[k] && Number.isFinite(Number(pr
 const S = {
   hourly: n("SIM_HOURLY_LIMIT", 10),
   daily: n("SIM_DAILY_CAP", 30),
-  noteMax: n("SIM_NOTE_MAX_CHARS", 1000),
-  maxLinks: n("SIM_MAX_LINKS", 5),
+  noteMax: n("SIM_NOTE_MAX_CHARS", 8000),
+  maxItems: 8,
+  maxFileBytes: 10 * 1024 * 1024,
   chaos: n("SIM_CHAOS", 0),
   delayS: n("SIM_JUDGE_DELAY_SECONDS", 3),
-  potBase: n("SIM_POT_USDC", 250) * 1e6,
-  perPointBase: n("SIM_USDC_PER_POINT", 0.5) * 1e6,
+  potBase: n("SIM_POT_USDC", 20) * 1e6, // official: 50 USDC.e per market, 20 judgment + 30 settlement
+  perPointBase: n("SIM_USDC_PER_POINT", 0.25) * 1e6,
   minDelta: n("SIM_MIN_DELTA", 0.02),
   terms: process.env.SIM_TERMS_VERSION || "sim-1",
 };
@@ -40,6 +41,8 @@ interface SimSub {
   readyAt: number; failNext: boolean; code?: string; retryAt?: string;
   verdict: string | null; reason: string | null; bounty: { amount: string; state: string } | null;
   zeroPayReason?: string; settlementUpTo: string | null;
+  /** markets[].status once judged: accepted / not_accepted (official). */
+  lineStatus?: string;
 }
 interface SimState {
   termsAccepted: string | null;
@@ -90,7 +93,7 @@ function view(x: SimSub) {
     ...(x.status === "failed" ? { code: x.code, canRetry: true, retryAt: x.retryAt } : {}),
     ...(x.status === "queued" || x.status === "judging" ? { judgingEstimateSeconds: Math.max(1, Math.ceil((x.readyAt - Date.now()) / 1000)) } : {}),
     markets: x.market ? [{
-      marketAddress: x.market, status: x.status, verdict: x.verdict, reason: x.reason, bounty: x.bounty,
+      marketAddress: x.market, status: x.lineStatus ?? x.status, verdict: x.verdict, reason: x.reason, bounty: x.bounty,
       settlementUpTo: x.settlementUpTo, ...(x.zeroPayReason ? { zeroPayReason: x.zeroPayReason } : {}),
     }] : [],
   };
@@ -105,10 +108,18 @@ async function runJudge(s: SimState, x: SimSub): Promise<void> {
   // Evidence that repeats an earlier submission earns nothing.
   const linkSet = new Set(earlier.flatMap((o) => o.links.map(normUrl)));
   if (x.links.some((l) => linkSet.has(normUrl(l))) || earlier.some((o) => similarity(o.note, x.note) >= 0.6)) {
-    Object.assign(x, { status: "judged", verdict: "duplicate", reason: "Repeats an earlier submission.", bounty: { amount: "0", state: "none" }, zeroPayReason: "below_minimum", settlementUpTo: "0" });
+    Object.assign(x, { status: "judged", lineStatus: "not_accepted", verdict: "duplicate", reason: "The same fact was already accepted on this market.", bounty: { amount: "0", state: "none" }, settlementUpTo: "0" });
     return;
   }
 
+  if (/\b(ignore (all|any|the|previous)|disregard|system prompt|you (must|should) (rate|score|accept|update|raise|lower)|(dear|to the) (judge|forecaster|model)|rate this|score this)/i.test(x.note)) {
+    Object.assign(x, { status: "judged", lineStatus: "not_accepted", verdict: "manipulation", reason: null, bounty: { amount: "0", state: "none" }, settlementUpTo: "0" });
+    return;
+  }
+  if (!x.links.length && !x.files) {
+    Object.assign(x, { status: "judged", lineStatus: "not_accepted", verdict: "unverifiable", reason: "No source to check.", bounty: { amount: "0", state: "none" }, settlementUpTo: "0" });
+    return;
+  }
   const f = s.forecasts[key];
   const before = f && f.day === new Date().toISOString().slice(0, 10) ? f : { ...(await forecastBefore(m)), day: new Date().toISOString().slice(0, 10) };
   s.forecasts[key] = before;
@@ -118,7 +129,7 @@ async function runJudge(s: SimState, x: SimSub): Promise<void> {
   const moveTxt = `Δ ${delta >= 0 ? "+" : ""}${(delta * 100).toFixed(1)}pts (${(j.probBefore * 100).toFixed(0)}%→${(j.probAfter * 100).toFixed(0)}%). ${j.rationale}`;
 
   if (!j.credible) {
-    Object.assign(x, { status: "judged", verdict: "rejected", reason: moveTxt, bounty: { amount: "0", state: "none" }, settlementUpTo: "0" });
+    Object.assign(x, { status: "judged", lineStatus: "not_accepted", verdict: "no information", reason: moveTxt, bounty: { amount: "0", state: "none" }, settlementUpTo: "0" });
     return;
   }
   s.forecasts[key] = { probYes: j.probAfter, rationale: `updated by evidence ${x.id}`, day: before.day };
@@ -130,9 +141,9 @@ async function runJudge(s: SimState, x: SimSub): Promise<void> {
   else if (usedToday(s) > S.daily) { amount = 0; zero = "daily_cap"; }
   s.pots[key] = pot - amount;
   Object.assign(x, {
-    status: "judged", verdict: "accepted", reason: moveTxt,
+    status: "judged", lineStatus: "accepted", verdict: "accepted", reason: moveTxt,
     bounty: { amount: String(amount), state: amount ? "held" : "none" },
-    zeroPayReason: zero, settlementUpTo: String(amount * 2),
+    zeroPayReason: zero, settlementUpTo: String(30 * 1e6 / 3), // a share of the 30 USDC.e settlement pot
   });
 }
 
@@ -175,8 +186,13 @@ export const simFetch: typeof fetch = async (input, init) => {
     if (!(await markets()).has(key)) return err(404, "market_not_found", "no such market", { field: "marketAddress" });
     const used = s.subs.filter((x) => x.market === key).length;
     const left = Math.max(0, rules.maxSubmissionsPerMarket - used);
+    const mk = (await markets()).get(key)!;
+    const cutoff = mk.evidenceCutoff ?? mk.closesAt;
+    // Official order: terms and market reasons first, then rate_limited.
+    const reason = s.termsAccepted !== S.terms ? "terms_not_accepted" : mk.status !== "open" ? "not_open" : cutoff && cutoff.getTime() <= Date.now() ? "closed"
+      : left === 0 ? "cap_reached" : usedThisHour(s).length >= S.hourly ? "rate_limited" : undefined;
     return json(200, {
-      canSubmit: left > 0 && s.termsAccepted === S.terms, ...(left ? {} : { reason: "all submissions used on this market" }),
+      canSubmit: !reason, ...(reason ? { reason } : {}),
       remainingOnMarket: left, judgementPotRemainingBaseUnits: String(s.pots[key] ?? S.potBase),
       rateLimit: { resetAt: new Date(Date.now() + 60_000).toISOString() },
     });
@@ -197,8 +213,12 @@ export const simFetch: typeof fetch = async (input, init) => {
     const same = s.subs.find((x) => x.key === key);
     if (same) return same.bodyHash === bodyHash ? json(200, view(same)) : err(409, "idempotency_conflict", "Idempotency-Key reused with a different body");
     if (!note.trim() || note.length > S.noteMax) return err(400, "invalid_request", `note must be 1-${S.noteMax} characters`, { field: "note" });
-    if (links.length > S.maxLinks || links.some((l) => !/^https?:\/\//.test(l))) return err(400, "invalid_request", `up to ${S.maxLinks} http(s) links`, { field: "links" });
-    if (files > rules.maxFilesPerSubmission) return err(400, "invalid_request", "too many files", { field: "files" });
+    if (links.some((l) => !/^https?:\/\/\S+$/.test(l))) return err(400, "invalid_request", "links[] must be URLs without spaces", { field: "links[]" });
+    if (files > 3) return err(400, "invalid_request", "at most 3 files", { field: "files" });
+    if ((note ? 1 : 0) + links.length + files > S.maxItems) return err(400, "invalid_request", "a submission holds at most 8 items", { field: "links[]" });
+    const fileList = form.getAll("files") as File[];
+    if (fileList.reduce((a, f) => a + f.size, 0) > S.maxFileBytes) return err(400, "invalid_request", "files exceed 10 MB in total", { field: "files" });
+    if (fileList.some((f) => !rules.allowedFileTypes.includes(f.type))) return err(400, "invalid_request", "file type not allowed", { field: "files" });
     if (market && !(await markets()).has(market)) return err(404, "market_not_found", "marketAddress is not a competition market", { field: "marketAddress" });
     if (market && s.subs.filter((x) => x.market === market).length >= rules.maxSubmissionsPerMarket) return err(429, "cap_reached", "all submissions used on this market", { retryable: false });
     const hour = usedThisHour(s);
@@ -213,7 +233,8 @@ export const simFetch: typeof fetch = async (input, init) => {
       failNext: S.chaos > 0 && Math.random() < S.chaos, verdict: null, reason: null, bounty: null, settlementUpTo: null,
     };
     s.subs.push(x); save();
-    return json(202, view(x), { "Retry-After": String(S.delayS) });
+    // Official: "markets is empty at first, also when you sent a marketAddress".
+    return json(202, { ...view(x), markets: [] }, { "Retry-After": String(S.delayS), Location: `/v1/submissions/${x.id}` });
   }
 
   const retry = p.match(/^\/submissions\/([^/]+)\/retry$/);

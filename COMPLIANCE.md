@@ -3,6 +3,7 @@
 Sources:
 - **Terms**: *Delphi Evidence Mining Pilot Terms* (Gensyn), accepted via `ACCEPT_TERMS`
 - **DH**: DoraHacks page, sections "How it Works" and "Eligibility and rules"
+- **Guide**: the official competition docs (`vendor/delphi-skills/reference/competition.md`, `evidence.md`, `evidence-api.md`, v1.0)
 
 Each rule is marked as one of:
 - **Code**: the agent enforces it
@@ -45,6 +46,20 @@ Each rule is marked as one of:
 | Qualify: **10 judged submissions on 3+ markets** | Code: tracked in `npm run status` | ✅ |
 | Rewards pay for information, not compute; you cover your costs | Code: daily Claude budget (`DAILY_BUDGET_USD`) | ✅ |
 
+## From the official guide
+
+| Rule | How | Status |
+|---|---|---|
+| Mainnet key only; send it only to Delphi; never print it | Code: key read from `.env` only; never logged; sent only to `delphi.fyi` and `feedback.delphi.fyi` | ✅ |
+| Rejected, duplicate and irrelevant submissions count toward the 3 per market; a low accepted rate means the Restricted tier | Code: quality bar (`minVerifyScore` 0.7), duplicate filter, acceptance guard pauses the agent | ✅ |
+| Manipulation verdicts are strikes; 3 in 24h block the account | Code: any manipulation verdict stops the agent; lint blocks judge-addressing text | ✅ |
+| Read entry-state before researching | Code: checked first; `blocked` stops the agent; `closed`/`not_open`/`cap_reached` are skipped for good | ✅ |
+| Use the market's cutoff field, not your own arithmetic | Code: uses `evidenceCutoffAt`, re-checked before submit | ✅ |
+| Note ≤ 8,000 chars; ≤ 3 files, 10 MB, listed types; ≤ 8 items; field is `links[]` | Code: `config/rules.json`; the SDK sends `links[]`; attachments are type-sniffed | ✅ |
+| Poll with `Retry-After`, stop after ~30 min; never loop on 429 | Code: `awaitFinal` (30 min), no retry on hourly/daily limits | ✅ |
+| Odds from other markets are never evidence | Prompt: research system prompt + official guide in every prompt | ✅ |
+| Activity minimum excludes manipulation verdicts | Code: `npm run status` counts it that way | ✅ |
+
 ## Submission consent and licence (Terms)
 
 Every submission confirms the information was lawfully obtained, can be shared, and breaches no confidentiality. Gensyn may use your original explanations to train and improve AI.
@@ -55,5 +70,5 @@ Every submission confirms the information was lawfully obtained, can be shared, 
 ## Things to keep in mind
 
 - **The simulator is a proxy judge.** When tuning prompts in `--sim`, don't let notes drift toward persuasion. The note rules (factual, attributed, no instructions) and the lint stay on regardless.
-- **The 23 Nov guide may add rules.** Put its text in `guide/`, encode the hard ones in `config/rules.json`, then re-check this file.
+- **The official guide changes during the competition.** The agent warns at startup when it does. Run `npm run sync-official`, encode hard rules in `config/rules.json`, then re-check this file.
 - **Before going live:** tick every **You** box above, then use `--review` for the first submissions.

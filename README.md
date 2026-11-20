@@ -1,13 +1,21 @@
 # Delphi Evidence Mining Agent
 
-Agent for the **Delphi Agent Arena: Evidence Mining** competition (Gensyn, 23 Nov – 11 Dec 2026).
-It finds dated, sourced, public facts on Delphi markets, fact-checks them, submits them and records
-verdicts and rewards.
+Agent for the **Delphi Agent Competition: Evidence Mining** (Gensyn, on **Delphi Mainnet**,
+**25 Nov 17:00 UTC – 11 Dec 2026**). It finds dated, sourced, public facts on Delphi markets,
+fact-checks them, submits them and records verdicts and rewards.
 
-It's built as a **base that adopts the official release**. It already follows the organisers' starter
-agent (public in the SDK repo since 19 Nov): the same `/markets.json` format, the same environment
-variable names and the same note format. Whatever changes on 23 Nov lives in files you can edit
-without touching code.
+It follows the organisers' official material:
+- the guide and rules (`gensyn-delphi-skills`, docs v1.0)
+- the starter agent and SDK (`gensyn-delphi-sdk`)
+
+`npm run sync-official` pulls both into `vendor/`. The parts the model must follow land in `guide/official-*.md`, which goes into every prompt. The agent warns at startup when the official rules change upstream.
+
+| Official | |
+|---|---|
+| Site, markets, leaderboard | <https://competition.delphi.fyi> (`/markets.json` from 25 Nov) |
+| Evidence API | `https://delphi.fyi/v1` with a **Mainnet** key from <https://api-access.delphi.fyi/> |
+| Feedback | <https://feedback.delphi.fyi> (`npm run feedback`) |
+| Rules | `vendor/delphi-skills/reference/competition.md` · what earns: `guide/official-evidence.md` |
 
 ## Layout
 
@@ -49,7 +57,7 @@ Everything is **real by default**. Three switches each replace one part, for tes
 
 | Part | Real (default) | Test switch |
 |---|---|---|
-| Markets | `competition`: `<COMPETITION_SITE_URL>/markets.json` (from 23 Nov) | `--markets=delphi`: **real live Delphi markets** via the SDK (works today) · `--markets=fixture`: samples |
+| Markets | `competition`: `competition.delphi.fyi/markets.json` (from 25 Nov) | `--markets=delphi`: **real live Delphi markets** via the SDK (works today) · `--markets=fixture`: samples |
 | Submissions + judge | Delphi evidence API through the SDK `EvidenceClient` | `--sim`: the same SDK client pointed at the local simulator |
 | Research + fact-check | Claude with web search/fetch | `--offline`: canned, adversarial ($0) |
 
@@ -76,7 +84,8 @@ Other commands:
 - `npm run report` compares prompt versions on what the judge paid and, after `outcomes`, how often the chosen side was right. Add `-- --sim` for simulator results.
 - `npm run status` shows submissions, verdicts and qualification progress. Add `-- --sim` for simulator results.
 - `npm run inspect-markets` shows how a market feed maps (try `-- --markets=delphi`).
-- `npm run sync-starter` re-pulls the official starter.
+- `npm run sync-official` re-pulls the official starter, docs and guide (alias `sync-starter`).
+- `npm run feedback` sends feedback to Delphi or shows the collected notes.
 - `npm run typecheck` runs `tsc --noEmit`.
 
 ### Test in the simulator, promote to live
@@ -98,23 +107,37 @@ Both use the same brain (`src/finder.ts`) and the same memory.
 
 The chaos test found that the unmodified starter exits with an error on the hourly limit or a transient 5xx. The bridge now covers that.
 
-## 23 November playbook
+## Before 25 November
 
-1. **Sync the official code.**
-   ```bash
-   npm run sync-starter          # pulls the latest starter, reports a newer SDK if any
-   git diff vendor/              # see exactly what the organisers changed
-   npm install @gensyn-ai/gensyn-delphi-sdk@latest   # if a newer SDK is reported
-   npm run typecheck && npm run test:chaos
-   ```
-   If the starter's `MarketCard` or `Fact` types changed, `tsc` points at the places to update (`src/types.ts` re-exports them).
-2. **Add the guide.** Save the agent guide and the one-line prompt as `.md` files in `guide/`. They're added to the research and fact-check prompts on the next run.
-3. **Update the rules.** Edit `config/rules.json` for any rule the guide states, such as note length, link and file limits, submissions per market, qualification, or note format.
-4. **Fill in `.env`.** Copy `.env.example`, then set `DELPHI_API_URL`, `DELPHI_API_ACCESS_KEY` and `COMPETITION_SITE_URL`.
-5. **Check the real feed.** `npm run inspect-markets` lists fields we don't use yet. Map the useful ones in `src/stages/markets.ts`, for example a reward pot or a description.
-6. **Accept the terms.** `npm run status` prints the terms URL and version. Read them, then set `ACCEPT_TERMS=<version>`.
-7. **First live run, small.** Run `MARKETS_PER_CYCLE=1 npm run cycle`, read the judge's rationale with `npm run status`, and tune `prompts/` and `minVerifyScore` through the simulator.
-8. **Feedback bounties.** Errors collect in `data/feedback-notes.md`. Send the useful ones through the feedback API or form (5 × $250).
+1. **Mainnet API key.** Create one at <https://api-access.delphi.fyi/> (keep **Mainnet** selected) with your Delphi account's wallet, and put it in `.env` as `DELPHI_API_ACCESS_KEY`. A testnet key gets `401`; keep one in `DELPHI_MARKETS_API_KEY` for testing on testnet markets.
+2. **`.env` identity.** Set `DELPHI_WALLET_ADDRESS` (the key's wallet, also your DoraHacks wallet) and `DELPHI_AGENT_ID` (your agent's name).
+3. **Register on DoraHacks** with that wallet, if not done. It takes up to 12 hours to sync.
+4. **Test the key.**
+   - `npm run feedback -- --list` should return an empty list.
+   - `npm run status` should show terms and limits.
+   - A `401` means a wrong or testnet key. `not_found` on every route means the wallet isn't registered yet.
+5. **Accept the terms.** `npm run status` prints the URL and version. Read them, then set `ACCEPT_TERMS=<version>`.
+6. **Tune in the simulator.** Run `npm run sim` on real markets with real Claude, then `npm run report -- --sim`.
+
+## On and after 25 November
+
+1. **Check for changes.** Run `npm run sync-official && git diff vendor/ guide/`, then `npm run typecheck && npm run test:chaos`.
+2. **Read the real feed.** `npm run inspect-markets` shows the live `/markets.json` and flags fields we don't use yet. Pots are 20 USDC.e judgment and 30 settlement per market.
+3. **Start small, with review.** Run `MARKETS_PER_CYCLE=1 npm run cycle -- --review`.
+4. **Learn from the results.** `npm run status` shows the verdicts and the judge's reasons. Tune `prompts/` and `config/rules.json` through the simulator.
+5. **Send feedback.** `npm run feedback -- --notes` shows what the agent collected. Send the useful ones with `npm run feedback -- --area … --text …` (5 × USD 250).
+
+## What protects the account
+
+These follow the official rules:
+- **Weak submissions still count.** Rejected, duplicate and irrelevant submissions each use one of the 3 per market, and a low accepted rate drops the account to the **Restricted tier** (1 per market). The **acceptance guard** pauses the agent when fewer than half of the last 6 were accepted (`config/rules.json` → `acceptanceGuard`).
+- **Manipulation verdicts.** Any manipulation verdict in 24 hours stops the agent, because 3 strikes in 24 hours block the account.
+- **Entry state first.** Every market is checked before research:
+  - `blocked` and `terms_not_accepted` stop the agent;
+  - `rate_limited` ends the hour;
+  - `closed`, `not_open` and `cap_reached` skip the market for good.
+- **Readable sources.** Notes follow the official structure: fact and date, source, why it matters, working. A **working.csv** is attached for calculations, and the **original document** (PDF/CSV/TXT/DOC) is copied when the judge may not be able to open the link. The link is always sent too.
+- **Polling.** Results are polled for up to 30 minutes, then left pending for `npm run outcomes` to re-read.
 
 ## Rules and eligibility
 

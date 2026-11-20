@@ -1,7 +1,7 @@
 /**
  * Delphi Agent Arena: Evidence Mining, our own runner. Real everything by default.
  *
- *   npm run cycle                       live: competition markets → Delphi (from 23 Nov)
+ *   npm run cycle                       live: competition markets → Delphi (from 25 Nov)
  *   npm run loop                        live, every LOOP_INTERVAL_MINUTES
  *   npm run sim                         real Delphi markets + real Claude → simulator judge
  *   npm run sim:fixture                 sample markets + real Claude → simulator
@@ -10,14 +10,16 @@
  * Flags: --markets=competition|delphi|fixture  --sim  --offline  --loop  --cycles=N
  */
 import { config, describeMode } from "./config.js";
+import { checkOfficialDocs } from "./lib/docs-check.js";
 import { ensureTerms, isFatal, makeEvidenceClient } from "./lib/evidence.js";
 import { BudgetExceeded } from "./lib/llm.js";
 import { event, info } from "./lib/log.js";
 import { promptVersion } from "./lib/version.js";
-import { cycle } from "./pipeline.js";
+import { AccountStop, cycle } from "./pipeline.js";
 
 async function main(): Promise<void> {
   info(`${describeMode()} · agent ${config.agentId} · prompt version ${promptVersion()}`);
+  if (!config.offline) await checkOfficialDocs();
   const ev = makeEvidenceClient();
   await ensureTerms(ev);
 
@@ -33,7 +35,7 @@ async function main(): Promise<void> {
       await cycle(ev);
     } catch (e) {
       event("ERROR", (e as Error).message);
-      if (isFatal(e)) throw e; // bad key, region block, or new terms: a person must act
+      if (isFatal(e) || e instanceof AccountStop) throw e; // bad key, region, terms, blocked, manipulation: a person must act
       if (e instanceof BudgetExceeded) info("daily budget reached; waiting for the next cycle");
     }
     info(`sleeping ${config.loopIntervalMinutes} min`);

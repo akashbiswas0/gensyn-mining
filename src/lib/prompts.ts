@@ -1,7 +1,7 @@
 /**
  * Prompt templates live in prompts/*.md with {{placeholders}}. Every .md file in guide/
  * (except its README) is injected into the system prompts as official guidance, so the
- * 23 Nov agent guide / one-line prompt can be adopted by dropping files in that folder.
+ * official guide (synced by npm run sync-official) and any notes you add reach the model.
  */
 import fs from "node:fs";
 import path from "node:path";

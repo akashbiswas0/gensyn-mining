@@ -1,7 +1,7 @@
 /**
  * npm run inspect-markets [-- --markets=delphi|fixture]
  * Fetches /markets.json and shows how each entry maps into our Market type, plus any fields
- * we don't use yet. Run it first on 23 Nov to see what the real feed contains.
+ * we don't use yet. Run it first on 25 Nov to see what the real feed contains.
  */
 import { config, describeMode } from "./config.js";
 import { KNOWN, fetchMarketCards, normalise } from "./stages/markets.js";

@@ -1,20 +1,42 @@
 {
-  "_doc": "Competition rules and agent policy. Edit this file (not code) when the 23 Nov guide changes a rule. Values marked (rule) come from the DoraHacks page or the official starter; (policy) are our choices.",
-
+  "_doc": "Competition rules and agent policy. Edit this file (not code) when a rule changes. Source of the (rule) values: gensyn-delphi-skills reference/competition.md + evidence-api.md, docs version 1.0 (2026-11-19).",
   "maxSubmissionsPerMarket": 3,
   "maxLinksPerSubmission": 3,
   "maxFilesPerSubmission": 3,
-
+  "maxItemsPerSubmission": 8,
+  "maxFileBytesTotal": 10485760,
+  "allowedFileTypes": [
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "application/pdf",
+    "text/plain",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "text/csv"
+  ],
   "noteTemplate": "As of {{date}}: {{text}}",
-  "noteMaxChars": 800,
-
-  "qualification": { "judgedSubmissions": 10, "markets": 3 },
-
-  "marketFilter": { "statuses": ["open"], "minYes": 0.05, "maxYes": 0.95 },
+  "noteMaxChars": 2500,
+  "noteHardMaxChars": 8000,
+  "qualification": {
+    "judgedSubmissions": 10,
+    "markets": 3
+  },
+  "marketFilter": {
+    "statuses": [
+      "open"
+    ],
+    "minYes": 0.2,
+    "maxYes": 0.8
+  },
   "cutoffBufferMinutes": 30,
-
   "oneSidePerMarket": true,
   "submissionsPerMarketPerCycle": 1,
-  "minVerifyScore": 0.65,
+  "minVerifyScore": 0.7,
+  "acceptanceGuard": {
+    "window": 6,
+    "minAcceptedRate": 0.5
+  },
+  "pollMaxMinutes": 30,
   "backoffHoursWhenNothingFound": 12
 }

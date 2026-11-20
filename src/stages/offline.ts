@@ -36,6 +36,8 @@ export const offlineStages: Stages = {
     return {
       supported: pass, dateConfirmed: true, directionCorrect: true, novelty: pass ? 0.8 : 0.2, relevance: 0.8, score: pass ? 0.8 : 0,
       issues: pass ? [] : ["canned: random fact-check failure"],
+      workingCsv: Math.random() < 0.3 ? "input,value\nlast_reading,4.21\nthreshold,4.00\nrequired_change,-0.06\n" : "",
+      sourceMayBeUnreadable: false,
       factDate: c.eventDate,
       factText: `${c.claim}, according to a public notice at ${new URL(c.sourceUrls[0]!).hostname}. This bears on the question's resolution.`,
     };

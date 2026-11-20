@@ -16,7 +16,7 @@ async function main(): Promise<void> {
     console.log(`\n${addr}  side=${m.side ?? "-"}  ${m.submissions.length}/${rules.maxSubmissionsPerMarket} used`);
     for (const x of m.submissions) {
       count++;
-      if (x.status === "judged") judged++;
+      if (x.status === "judged" && !/manipulation/i.test(x.verdict ?? "")) judged++; // official: manipulation verdicts don't count
       total += usdc(x.bounty);
       console.log(`  ${x.at.slice(0, 16)} ${x.direction.toUpperCase().padEnd(3)} ${x.status}/${x.verdict ?? "-"} ${usdc(x.bounty).toFixed(2)} USDC ${x.zeroPayReason ?? ""}`);
       console.log(`    ${x.note.slice(0, 160)}`);

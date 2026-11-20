@@ -1,12 +1,12 @@
 /**
- * Settings come from three places, so the 23 Nov guide can be adopted without code changes:
+ * Settings come from three places, so official rule changes can be adopted without code changes:
  *   .env               secrets and endpoints (names match the official starter agent)
  *   config/rules.json  competition rules and agent policy
  *   prompts/, guide/   what the model is told (see src/lib/prompts.ts)
  *
  * Everything is REAL by default. Three switches replace one part at a time for testing:
  *   --markets=competition|delphi|fixture   where markets come from (default: competition)
- *        competition = <COMPETITION_SITE_URL>/markets.json (live from 23 Nov)
+ *        competition = <COMPETITION_SITE_URL>/markets.json (live from 25 Nov)
  *        delphi      = real live Delphi markets via the SDK's DelphiClient (works today)
  *        fixture     = fixtures/markets.sample.json
  *   --sim          send submissions to the local competition simulator (src/sim) instead of Delphi
@@ -33,6 +33,12 @@ export interface Rules {
   maxFilesPerSubmission: number;
   noteTemplate: string;
   noteMaxChars: number;
+  noteHardMaxChars: number;
+  maxItemsPerSubmission: number;
+  maxFileBytesTotal: number;
+  allowedFileTypes: string[];
+  acceptanceGuard: { window: number; minAcceptedRate: number };
+  pollMaxMinutes: number;
   qualification: { judgedSubmissions: number; markets: number };
   marketFilter: { statuses: string[]; minYes: number; maxYes: number };
   cutoffBufferMinutes: number;
@@ -58,16 +64,22 @@ export const config = {
   review: flag("review") || env("REVIEW") === "1",
   cycles: num(opt("cycles") ?? "", 1),
 
-  // Same variable names as the official starter (older names still accepted).
-  siteUrl: env("COMPETITION_SITE_URL") || "https://agent-competition.gensyn.ai",
-  apiUrl: env("DELPHI_API_URL", "EVIDENCE_API_BASE_URL"),
+  // Official values from the competition guide (gensyn-delphi-skills reference/competition.md).
+  // Variable names: the official skill's first, the official starter's second.
+  siteUrl: env("COMPETITION_SITE_URL") || "https://competition.delphi.fyi",
+  apiUrl: env("DELPHI_EVIDENCE_URL", "DELPHI_API_URL", "EVIDENCE_API_BASE_URL") || "https://delphi.fyi/v1",
+  /** A MAINNET Delphi API key (api-access.delphi.fyi). Testnet keys get 401 from the competition. */
   apiKey: env("DELPHI_API_ACCESS_KEY", "DELPHI_API_KEY"),
+  /** The wallet the key was created with = the DoraHacks registration wallet. Needed for feedback. */
+  wallet: env("DELPHI_WALLET_ADDRESS", "CDP_WALLET_ADDRESS"),
   acceptTerms: env("ACCEPT_TERMS") || undefined,
-  agentId: env("AGENT_ID") || "my-evidence-agent",
-  agentHarness: env("AGENT_HARNESS") || "delphi-evidence-agent-ts",
+  agentId: env("DELPHI_AGENT_ID", "AGENT_ID") || "my-evidence-agent",
+  agentHarness: env("DELPHI_AGENT_HARNESS", "AGENT_HARNESS") || "delphi-evidence-agent-ts",
+  feedbackUrl: env("DELPHI_FEEDBACK_URL") || "https://feedback.delphi.fyi",
 
-  /** For --markets=delphi: a Delphi API key for that network (testnet: delphi-api-access.gensyn.ai, mainnet: api-access.delphi.fyi). */
-  delphiMarketsNetwork: (env("DELPHI_MARKETS_NETWORK") || "testnet") as "mainnet" | "testnet",
+  /** Reading Delphi markets with the SDK. Competition markets are Delphi MAINNET markets. For
+   *  testing with --markets=delphi you can read another network with its own key. */
+  delphiMarketsNetwork: (env("DELPHI_MARKETS_NETWORK") || "mainnet") as "mainnet" | "testnet",
   delphiMarketsApiKey: env("DELPHI_MARKETS_API_KEY", "DELPHI_API_ACCESS_KEY"),
 
   researchModel: env("RESEARCH_MODEL") || "claude-opus-5-5",
@@ -75,7 +87,7 @@ export const config = {
   researchEffort: effort(env("RESEARCH_EFFORT"), "high"),
   verifyEffort: effort(env("VERIFY_EFFORT"), "high"),
   get agentModel() {
-    return env("AGENT_MODEL") || this.researchModel;
+    return env("DELPHI_AGENT_MODEL", "AGENT_MODEL") || this.researchModel;
   },
 
   dailyBudgetUsd: num(env("DAILY_BUDGET_USD"), 10),
@@ -106,11 +118,10 @@ export function describeMode(): string {
  */
 export function requireLive(): void {
   const problems = [
-    !config.apiUrl && "DELPHI_API_URL is not set (published on 23 Nov)",
-    !config.apiKey && "DELPHI_API_ACCESS_KEY is not set (published on 23 Nov)",
+    !config.apiKey && "DELPHI_API_ACCESS_KEY is not set (a Mainnet key from https://api-access.delphi.fyi/)",
     config.offline && "--offline (canned research) can never submit live: it would be fabricated evidence",
     config.marketSource !== "competition" && `--markets=${config.marketSource} is for testing only: live submissions must go to competition markets`,
-    (!process.env.AGENT_ID || process.env.AGENT_ID === "my-evidence-agent") && "set AGENT_ID in .env to the agent name you registered on DoraHacks",
+    config.agentId === "my-evidence-agent" && "set DELPHI_AGENT_ID in .env to the agent name you registered on DoraHacks",
   ].filter(Boolean);
   if (problems.length) throw new Error(`Refusing to submit live:\n- ${problems.join("\n- ")}\n(Add --sim to test against the simulator.)`);
 }

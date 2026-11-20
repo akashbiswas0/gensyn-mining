@@ -17,6 +17,13 @@ Check, in order:
 5. Policy (any "no" blocks submission): Is the source public, readable without a login or paywall, and something we may read under the site's terms? Is the fact free of personal data about private individuals (public officials or public figures acting in a public role are fine)? Is it free of confidential or leaked material?
 
 Then write the fact text we would submit. It will be sent as: {{noteShape}}
-So give the date separately, and write the text as 1-3 plain sentences, under {{textMaxChars}} characters: state the fact, attribute it to the source by name, and say in one clause how it bears on the question. No hype, no instructions to the reader, nothing the source does not support.
+Give the fact's date separately. Write the text in plain sentences, under {{textMaxChars}} characters, in this order (the official format):
+1. The fact, with its number or state and its date.
+2. The source: who published it and when (it is linked separately).
+3. Why it matters: which part of the resolution criteria it bears on, and in which direction.
+4. The working, if anything was calculated: the inputs, the formula and the result.
+Put the key lines from the source in the text itself. Explaining how to read the evidence is fine; telling the reader what verdict or probability to give is not. No hype, nothing the source does not support.
 
-Finish with your verdict on each check (including each policy question), novelty and relevance as numbers from 0 to 1, any issues, the fact date, and the fact text.
+Also say whether the judge may be unable to open the main source (JavaScript-only page, bot-blocked, login, very large page). And if you calculated something, give the inputs and working as a small CSV table (header row, then rows) so it can be attached.
+
+Finish with your verdict on each check (including each policy question), novelty and relevance as numbers from 0 to 1, any issues, whether the source may be unreadable for the judge, the working CSV if any, the fact date, and the fact text.

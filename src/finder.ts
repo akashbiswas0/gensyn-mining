@@ -9,7 +9,8 @@ import readline from "node:readline/promises";
 import { formatNote, lintNote } from "./lib/note.js";
 import * as state from "./lib/state.js";
 import { stages } from "./stages/index.js";
-import type { Candidate, Market, Verification } from "./types.js";
+import { buildAttachments } from "./lib/attachments.js";
+import type { Attachment, Candidate, Market, Verification } from "./types.js";
 
 export interface Proposal {
   candidate: Candidate;
@@ -17,6 +18,7 @@ export interface Proposal {
   /** The final note, built from rules.noteTemplate. */
   note: string;
   links: string[];
+  files: Attachment[];
 }
 
 const IMPACT = { low: 1, medium: 2, high: 3 } as const;
@@ -82,7 +84,10 @@ export async function findFact(m: Market): Promise<Proposal | null> {
       state.save();
       continue;
     }
-    const proposal = { candidate: c, verification: v, note: formatNote(v.factDate, v.factText), links: c.sourceUrls.slice(0, rules.maxLinksPerSubmission) };
+    const links = c.sourceUrls.slice(0, rules.maxLinksPerSubmission);
+    const files = config.offline ? [] : await buildAttachments({ workingCsv: v.workingCsv, mainSource: links[0], sourceMayBeUnreadable: v.sourceMayBeUnreadable, links: links.length });
+    if (config.offline && v.workingCsv) files.push({ name: "working.csv", type: "text/csv", data: new TextEncoder().encode(v.workingCsv) });
+    const proposal: Proposal = { candidate: c, verification: v, note: formatNote(v.factDate, v.factText), links, files };
     const blocked = await preSubmitGate(m, proposal);
     if (blocked) {
       event("SKIP", `Blocked before submit (${blocked}): ${proposal.note}`);
@@ -108,7 +113,7 @@ async function preSubmitGate(m: Market, p: Proposal): Promise<string | null> {
   if (config.review) {
     if (!process.stdin.isTTY) return "--review needs an interactive terminal";
     const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    console.log(`\n── Review submission ──\nMarket: ${m.question}\nSide:   ${p.candidate.direction.toUpperCase()}\nNote:   ${p.note}\nLinks:  ${p.links.join("  ")}\nCheck:  novelty ${p.verification.novelty.toFixed(2)}, relevance ${p.verification.relevance.toFixed(2)}${p.verification.issues.length ? `, notes: ${p.verification.issues.join("; ")}` : ""}`);
+    console.log(`\n── Review submission ──\nMarket: ${m.question}\nSide:   ${p.candidate.direction.toUpperCase()}\nNote:   ${p.note}\nLinks:  ${p.links.join("  ")}\nFiles:  ${p.files.map((f) => `${f.name} (${Math.round(f.data.byteLength / 1024)} KB)`).join(", ") || "none"}\nCheck:  novelty ${p.verification.novelty.toFixed(2)}, relevance ${p.verification.relevance.toFixed(2)}${p.verification.issues.length ? `, notes: ${p.verification.issues.join("; ")}` : ""}`);
     const answer = (await rl.question("Submit this? [y/N] ")).trim().toLowerCase();
     rl.close();
     if (answer !== "y" && answer !== "yes") return "declined in review";

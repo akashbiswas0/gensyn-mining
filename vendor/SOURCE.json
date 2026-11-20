@@ -1,0 +1,14 @@
+{
+  "starter": {
+    "repo": "gensyn-ai/gensyn-delphi-sdk",
+    "sha": "14d706f5c674c7e4fbaf0237bdbeae7894faaea0",
+    "committedAt": "2026-11-19T16:02:56Z"
+  },
+  "docs": {
+    "repo": "gensyn-ai/gensyn-delphi-skills",
+    "sha": "da9eb484d6ba8bfff314188a43351ddc86ead3b8",
+    "committedAt": "2026-11-20T12:25:12Z",
+    "version": "Docs version: 1.0 (2026-11-19)"
+  },
+  "sdkInstalled": "2.4.0"
+}

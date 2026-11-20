@@ -1,5 +1,7 @@
 # Official guidance goes here
 
+`official-evidence.md` and `official-rules.md` are generated verbatim from the organisers' docs by `npm run sync-official`. Don't edit them; re-run the sync. `fair-play.md` is verbatim from the Pilot Terms.
+
 Put the official competition texts in this folder as `.md` files, for example:
 
 - `agent-guide.md`: the agent guide published on 23 Nov

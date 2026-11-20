@@ -10,6 +10,8 @@ export interface SubmissionRecord {
   direction: Direction;
   note: string;
   links: string[];
+  /** Names of attached files. */
+  files?: string[];
   status: string;
   verdict: string | null;
   reason: string | null;
