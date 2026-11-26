@@ -6,10 +6,10 @@
 import { config, rules } from "./config.js";
 import { event, info } from "./lib/log.js";
 import readline from "node:readline/promises";
-import { formatNote, lintNote } from "./lib/note.js";
+import { formatNote, lintNote, withWorking } from "./lib/note.js";
 import * as state from "./lib/state.js";
 import { stages } from "./stages/index.js";
-import { buildAttachments } from "./lib/attachments.js";
+import { packItems } from "./lib/attachments.js";
 import type { Attachment, Candidate, Market, Verification } from "./types.js";
 
 export interface Proposal {
@@ -68,7 +68,8 @@ export async function findFact(m: Market): Promise<Proposal | null> {
     return null;
   }
 
-  const ordered = [...r.candidates].sort((a, b) => IMPACT[b.expectedImpact] * b.confidence - IMPACT[a.expectedImpact] * a.confidence);
+  const w = (c: Candidate) => IMPACT[c.expectedImpact] * c.confidence * (1 - (c.duplicationRisk ?? 0));
+  const ordered = [...r.candidates].sort((a, b) => w(b) - w(a));
   for (const c of ordered) {
     if (rules.oneSidePerMarket && s.side && c.direction !== s.side) {
       event("SKIP", `Opposite-side fact held back (would cancel our ${s.side.toUpperCase()} evidence): ${c.claim}`);
@@ -84,10 +85,9 @@ export async function findFact(m: Market): Promise<Proposal | null> {
       state.save();
       continue;
     }
-    const links = c.sourceUrls.slice(0, rules.maxLinksPerSubmission);
-    const files = config.offline ? [] : await buildAttachments({ workingCsv: v.workingCsv, mainSource: links[0], sourceMayBeUnreadable: v.sourceMayBeUnreadable, links: links.length });
-    if (config.offline && v.workingCsv) files.push({ name: "working.csv", type: "text/csv", data: new TextEncoder().encode(v.workingCsv) });
-    const proposal: Proposal = { candidate: c, verification: v, note: formatNote(v.factDate, v.factText), links, files };
+    // At most rules.maxItemsPerSubmission items: the note, each link and each file count as 1.
+    const { links, files, workingForNote } = await packItems({ sourceUrls: c.sourceUrls, workingCsv: v.workingCsv, sourceMayBeUnreadable: v.sourceMayBeUnreadable, download: !config.offline });
+    const proposal: Proposal = { candidate: c, verification: v, note: withWorking(formatNote(v.factDate, v.factText), workingForNote), links, files };
     const blocked = await preSubmitGate(m, proposal);
     if (blocked) {
       event("SKIP", `Blocked before submit (${blocked}): ${proposal.note}`);

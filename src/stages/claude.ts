@@ -23,6 +23,7 @@ const CandidateSchema = z.object({
   whyItMatters: z.string(),
   expectedImpact: z.enum(["low", "medium", "high"]),
   confidence: z.number().describe("0-1"),
+  duplicationRisk: z.number().describe("0-1: how likely the forecaster already has this, or a faster agent submits the same obvious record. Headline figures and first-place-you-would-look records are HIGH (0.6-0.9). A non-obvious calculation, a niche/local source, or a connection is LOW (0.0-0.3)."),
 });
 
 const ResearchSchema = z.object({
@@ -37,6 +38,7 @@ const VerifySchema = z.object({
   directionCorrect: z.boolean(),
   novelty: z.number().describe("0-1"),
   relevance: z.number().describe("0-1"),
+  duplicationRisk: z.number().describe("0-1: chance the forecaster already has this or an obvious competitor submits the same record. Be pessimistic: any headline official figure, or the first record any agent would fetch for this market, is 0.6+."),
   publicSource: z.boolean().describe("Public, no login or paywall, allowed to read under the site's terms"),
   noPrivatePersonalData: z.boolean().describe("No personal data about private individuals"),
   notConfidential: z.boolean().describe("Not confidential or leaked material"),
@@ -51,7 +53,10 @@ const clamp01 = (n: number) => (Number.isFinite(n) ? Math.min(1, Math.max(0, n))
 const isHttpUrl = (u: string) => { try { return ["http:", "https:"].includes(new URL(u).protocol); } catch { return false; } };
 
 async function research(m: Market, s: MarketState): Promise<ResearchResult> {
-  const already = [...s.submissions.map((x) => `- SUBMITTED: ${x.note}`), ...s.seenClaims.map((c) => `- ALREADY FOUND: ${c}`)];
+  const already = [
+    ...s.submissions.map((x) => `- ${/duplicate/i.test(x.verdict ?? x.code ?? "") ? "JUDGED DUPLICATE (too obvious — the forecaster already had it; find a DIFFERENT, less obvious angle)" : "SUBMITTED"}: ${x.note}`),
+    ...s.seenClaims.map((c) => `- ALREADY FOUND: ${c}`),
+  ];
   const side = s.side?.toUpperCase();
   const sideRule = side && rules.oneSidePerMarket
     ? `We have already submitted evidence pointing to ${side} on this market. Evidence for both sides cancels out, so only report candidates pointing to ${side}. Describe strong evidence for the other side under "contrary evidence" instead of listing it.`
@@ -111,19 +116,23 @@ async function verify(m: Market, c: Candidate): Promise<Verification> {
   const v = await extract(VerifySchema, prompt("verify.extract", { report: run.text }), config.verifyModel);
   const novelty = clamp01(v.novelty);
   const relevance = clamp01(v.relevance);
+  const duplicationRisk = clamp01(v.duplicationRisk);
   // Pilot Terms, "Fair play": any policy failure blocks the fact outright, whatever its value.
   const policy = [
     !v.publicSource && "source is not public / needs login or paywall / site terms",
     !v.noPrivatePersonalData && "contains personal data about a private individual",
     !v.notConfidential && "confidential or leaked material",
   ].filter((x): x is string => Boolean(x));
-  const ok = v.supported && v.dateConfirmed && v.directionCorrect && policy.length === 0;
+  // An obvious record scores near zero even when accurate and relevant: that is how duplicates are avoided.
+  const tooObvious = duplicationRisk >= rules.maxDuplicationRisk;
+  const ok = v.supported && v.dateConfirmed && v.directionCorrect && policy.length === 0 && !tooObvious;
   return {
     ...v,
     novelty,
     relevance,
-    score: ok ? 0.5 * novelty + 0.5 * relevance : 0,
-    issues: [...policy.map((x) => `POLICY: ${x}`), ...(v.directionCorrect ? [] : ["direction does not hold"]), ...v.issues],
+    duplicationRisk,
+    score: ok ? (0.5 * novelty + 0.5 * relevance) * (1 - duplicationRisk) : 0,
+    issues: [...policy.map((x) => `POLICY: ${x}`), ...(tooObvious ? [`too likely already priced/duplicate (risk ${duplicationRisk.toFixed(2)})`] : []), ...(v.directionCorrect ? [] : ["direction does not hold"]), ...v.issues],
     factDate: v.factDate || c.eventDate,
   };
 }

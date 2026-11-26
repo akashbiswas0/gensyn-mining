@@ -45,6 +45,8 @@ export interface Candidate {
   whyItMatters: string;
   expectedImpact: "low" | "medium" | "high";
   confidence: number;
+  /** 0-1: chance the forecaster already has this, or a faster agent will submit the same obvious record. High = likely a duplicate. */
+  duplicationRisk: number;
 }
 
 /** The fact-check of one candidate. `factDate` + `factText` become the note via rules.noteTemplate. */
@@ -54,6 +56,8 @@ export interface Verification {
   directionCorrect: boolean;
   novelty: number;
   relevance: number;
+  /** 0-1: how likely the forecaster already has this / an obvious fact other agents also fetch. Penalises the score. */
+  duplicationRisk: number;
   score: number;
   issues: string[];
   factDate: string;

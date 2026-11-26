@@ -38,6 +38,8 @@ export const KNOWN = new Set([
   "evidenceCutoff", "dataSources", "description", "resolutionCriteria", "rules", "outcomes", "closesAt",
   "closeTime", "resolvesAt", "rewardPot", "judgementPot", "judgementPotRemainingBaseUnits", "category",
   "marketUrl", "url", "metadata",
+  // live feed, 25 Nov 2026 (marketTier, wave, categoryLabel: shown only; settled: null until it settles)
+  "delphiUrl", "pots", "marketTier", "wave", "categoryLabel", "settled",
 ]);
 
 export function normalise(card: MarketCard | Obj): Market | null {
@@ -51,7 +53,8 @@ export function normalise(card: MarketCard | Obj): Market | null {
   if (probYes !== null && probYes > 1) probYes /= 100;
 
   let pot = toNum(pick(m, "rewardPot", "judgementPot"));
-  const potBase = toNum(pick(m, "judgementPotRemainingBaseUnits"));
+  // Live feed: pots.judgement is the market's pot in USDC.e base units (entry-state has what is LEFT of it).
+  const potBase = toNum(pick(m, "judgementPotRemainingBaseUnits", "pots.judgement"));
   if (pot === null && potBase !== null) pot = potBase / 1e6;
 
   const ds = pick(m, "dataSources");
@@ -67,7 +70,7 @@ export function normalise(card: MarketCard | Obj): Market | null {
     rewardPot: pot,
     dataSources: Array.isArray(ds) ? ds.map(String) : [],
     category: (pick(m, "category") as string | undefined) ?? null,
-    url: (pick(m, "marketUrl", "url") as string | undefined) ?? null,
+    url: (pick(m, "marketUrl", "delphiUrl", "url") as string | undefined) ?? null,
     raw: m,
   };
 }
@@ -109,7 +112,8 @@ async function delphiCards(): Promise<Obj[]> {
       address: m.id,
       question: m.metadata.question,
       status: m.status,
-      odds: p ? { yes: p[yes], no: p[no] } : { yes: 0.5, no: 0.5 },
+      // The arrays are empty when the chain has no prices for the market (official skills fix, 2026-11-20).
+      odds: p && p[yes] !== undefined && p[no] !== undefined ? { yes: p[yes], no: p[no] } : { yes: 0.5, no: 0.5 },
       evidenceCutoffAt: m.settlesAt ?? m.resolvesAt ?? "",
       dataSources: Array.isArray(m.dataSources) ? m.dataSources.map(String) : [],
       description: m.metadata.model?.prompt_context ?? "",
@@ -127,7 +131,13 @@ export async function fetchMarketCards(): Promise<Obj[]> {
   const url = new URL("/markets.json", config.siteUrl).toString();
   const res = await fetch(url);
   if (!res.ok) throw new Error(`GET ${url} → ${res.status}`);
-  return unwrap(await res.json(), url);
+  const body = await res.text();
+  try {
+    return unwrap(JSON.parse(body), url);
+  } catch (e) {
+    if (!(e instanceof SyntaxError)) throw e;
+    throw new Error(`GET ${url} did not return JSON (${res.headers.get("content-type") ?? "?"}). Check COMPETITION_SITE_URL: the competition is at https://competition.delphi.fyi`);
+  }
 }
 
 /**

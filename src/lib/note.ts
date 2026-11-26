@@ -11,6 +11,16 @@ export function formatNote(date: string, text: string): string {
   return end > rules.noteMaxChars * 0.6 ? cut.slice(0, end + 1) : cut.trimEnd();
 }
 
+/**
+ * Appends a calculation's working (CSV rows) to the note when it got no file slot of its own.
+ * Bounded by the API's hard note limit; dropped whole rather than cut mid-table.
+ */
+export function withWorking(note: string, csv: string): string {
+  if (!csv.trim()) return note;
+  const out = `${note}\n\nWorking (CSV):\n${csv.trim()}`;
+  return out.length <= rules.noteHardMaxChars ? out : note;
+}
+
 /** Characters left for the fact text once the template is applied (used in the fact-check prompt). */
 export function textBudget(): number {
   return Math.max(120, rules.noteMaxChars - render(rules.noteTemplate, { date: "2026-11-23", text: "" }).length);

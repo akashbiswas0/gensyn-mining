@@ -1,11 +1,17 @@
 /**
- * Builds the files for a submission, following the official guide ("Make the source readable"):
- *  - working.csv: the inputs and working of a calculation, when there is one
- *  - the original document (PDF/CSV/TXT/DOC/DOCX), downloaded from its public link, when the judge
- *    may not be able to open the link or the link is itself a document. "A copy of an online record
- *    counts only together with a link to the original": the link is always sent too.
- * Limits from config/rules.json: file count, total bytes, allowed types, 8 items per submission.
- * The type is detected from the content (as the API does), not trusted from headers or names.
+ * Packs a submission's items, following the official guide ("Make the source readable").
+ * Since 2026-11-23 a submission holds at most rules.maxItemsPerSubmission (3) items: the note, each
+ * link and each file count as 1, and a 4th is refused with 400. We always send the note and the main
+ * link ("a copy of an online record counts only together with a link to the original"). Any slot
+ * left goes, in this order, to:
+ *  1. a copy of the main source when the judge may not be able to open it (the official remedy
+ *     for an Unverifiable verdict: "send it with the document attached and the original linked")
+ *  2. working.csv: the inputs and working of a calculation
+ *  3. a copy of the main source when it is itself a document (PDF, spreadsheet)
+ *  4. further source links
+ * A calculation that gets no slot of its own goes into the note ("put the key lines in the note
+ * itself"), so the working is never lost.
+ * File types are detected from the content (as the API does), not trusted from headers or names.
  */
 import { rules } from "../config.js";
 import type { Attachment } from "../types.js";
@@ -41,25 +47,50 @@ async function download(url: string, budget: number): Promise<Attachment | null>
   }
 }
 
-export async function buildAttachments(o: { workingCsv: string; mainSource: string | undefined; sourceMayBeUnreadable: boolean; links: number }): Promise<Attachment[]> {
+export interface Packed {
+  links: string[];
+  files: Attachment[];
+  /** The working CSV when it got no file slot; the caller appends it to the note. */
+  workingForNote: string;
+}
+
+export async function packItems(o: { sourceUrls: string[]; workingCsv: string; sourceMayBeUnreadable: boolean; download: boolean }): Promise<Packed> {
+  const main = o.sourceUrls[0];
+  const links = main ? [main] : [];
   const files: Attachment[] = [];
   let budget = rules.maxFileBytesTotal;
-  const room = () => Math.min(rules.maxFilesPerSubmission, rules.maxItemsPerSubmission - 1 - o.links) - files.length;
+  const left = () => rules.maxItemsPerSubmission - 1 /* note */ - links.length - files.length;
+  const fileRoom = () => left() > 0 && files.length < rules.maxFilesPerSubmission;
 
   const csv = o.workingCsv.trim();
-  if (csv && csv.includes("\n") && room() > 0) {
+  const hasCsv = csv.includes("\n");
+  let csvAttached = false;
+  const addCsv = () => {
+    csvAttached = true;
     const data = new TextEncoder().encode(csv + "\n");
     files.push({ name: "working.csv", type: "text/csv", data });
     budget -= data.byteLength;
+  };
+  const addCopy = async () => {
+    const doc = await download(main!, budget);
+    if (!doc) return;
+    files.push(doc);
+    budget -= doc.data.byteLength;
+    info(`attaching ${doc.name} (${Math.round(doc.data.byteLength / 1024)} KB) copied from ${main}`);
+  };
+
+  const isDoc = !!main && DOC_EXT.test(main);
+  let copied = false;
+  if (o.download && main && o.sourceMayBeUnreadable && fileRoom()) { await addCopy(); copied = files.length > 0; }
+  if (hasCsv && fileRoom()) addCsv();
+  if (o.download && main && isDoc && !copied && fileRoom()) await addCopy();
+  for (const url of o.sourceUrls.slice(1)) {
+    if (left() <= 0 || links.length >= rules.maxLinksPerSubmission) break;
+    if (!links.includes(url)) links.push(url);
   }
-  if (o.mainSource && room() > 0 && (o.sourceMayBeUnreadable || DOC_EXT.test(o.mainSource))) {
-    const doc = await download(o.mainSource, budget);
-    if (doc) {
-      files.push(doc);
-      info(`attaching ${doc.name} (${Math.round(doc.data.byteLength / 1024)} KB) copied from ${o.mainSource}`);
-    }
-  }
-  return files;
+
+  if (hasCsv && !csvAttached) info("no item slot left for working.csv; the working goes into the note");
+  return { links, files, workingForNote: hasCsv && !csvAttached ? csv : "" };
 }
 
 /** For the SDK: multipart files need a name, so use File (a Blob with a filename). */

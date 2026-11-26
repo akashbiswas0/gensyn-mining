@@ -19,7 +19,7 @@ export function rankMarkets(markets: Market[], now = new Date()) {
 
   for (const m of markets) {
     const s = state.market(m.address);
-    const used = s.submissions.length;
+    const used = state.slotsUsed(m.address, rules.duplicateGiveBacksPer24h);
     const cutoff = m.evidenceCutoff ?? m.closesAt;
     const skip = (why: string) => skipped.push({ market: m, why });
 
@@ -47,5 +47,11 @@ export function rankMarkets(markets: Market[], now = new Date()) {
     });
   }
   ranked.sort((a, b) => b.score - a.score);
+  // Opt-in (SORT_BY_CUTOFF=1): put the markets whose evidence cutoff is nearest first, so a run
+  // can target "markets ending soon" instead of the pot/uncertainty ranking.
+  if (process.env.SORT_BY_CUTOFF === "1") {
+    const cut = (m: Market) => (m.evidenceCutoff ?? m.closesAt)?.getTime() ?? Infinity;
+    ranked.sort((a, b) => cut(a.market) - cut(b.market));
+  }
   return { ranked, skipped };
 }

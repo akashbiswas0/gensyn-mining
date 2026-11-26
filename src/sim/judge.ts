@@ -23,7 +23,7 @@ const AFTER = z.object({
   rationale: z.string().describe("One or two sentences: what changed and why"),
 });
 
-const judgeModel = () => process.env.SIM_JUDGE_MODEL || "claude-opus-5-5";
+const judgeModel = () => process.env.SIM_JUDGE_MODEL || "gpt-5.6-sol";
 const clamp = (p: number) => (Number.isFinite(p) ? Math.min(0.99, Math.max(0.01, p)) : 0.5);
 const today = () => new Date().toISOString().slice(0, 10);
 

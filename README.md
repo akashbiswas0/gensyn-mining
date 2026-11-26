@@ -48,7 +48,9 @@ src/
   report.ts              compares prompt versions on what the judge paid
   sim/server.ts          local competition simulator (evidence API /v1 routes, strict, chaos mode)
   sim/judge.ts           simulated judge: Claude forecaster before/after a note (or heuristic)
-scripts/chaos-test.ts    many runs against the failing simulator, then checks the safety rules
+scripts/chaos-test.ts    5 scenarios of real runs against the failing simulator, then checks the safety rules
+tests/unit.test.ts       item packing, notes, market ranking, error classification
+tests/contract.test.ts   the real SDK client against the simulator, rule by rule from the official API docs
 ```
 
 ## Real vs simulated
@@ -72,12 +74,13 @@ Its judge is a proxy for the real one: good for comparing versions, not a promis
 
 | Command | Markets | Submissions | Research |
 |---|---|---|---|
+| `npm run preflight` | competition | nothing sent (read-only check: key, terms, limits, markets, docs) | none ($0) |
 | `npm run cycle` / `npm run loop` | competition | **live Delphi** | Claude |
 | `npm run starter` | competition | **live Delphi** (official starter + our brain) | Claude |
 | `npm run sim` | **real Delphi** | simulator | Claude |
 | `npm run starter:sim` | **real Delphi** | simulator (official starter + our brain) | Claude |
 | `npm run sim:fixture` | samples | simulator | Claude |
-| `npm run test:chaos` | 12 generated | simulator + 25% failures | canned ($0) |
+| `npm run test:chaos` | 12 generated | simulator, 5 scenarios (see below) | canned ($0) |
 
 Other commands:
 - `npm run outcomes` refreshes submissions from the API and checks how each market actually settled on Delphi (real ground truth for side accuracy). Add `-- --sim` for simulator runs.
@@ -107,17 +110,29 @@ Both use the same brain (`src/finder.ts`) and the same memory.
 
 The chaos test found that the unmodified starter exits with an error on the hourly limit or a transient 5xx. The bridge now covers that.
 
-## Before 25 November
+## Tests ($0, no keys, never call live services; the chaos test rewrites only `data/chaos/`)
 
-1. **Mainnet API key.** Create one at <https://api-access.delphi.fyi/> (keep **Mainnet** selected) with your Delphi account's wallet, and put it in `.env` as `DELPHI_API_ACCESS_KEY`. A testnet key gets `401`; keep one in `DELPHI_MARKETS_API_KEY` for testing on testnet markets.
-2. **`.env` identity.** Set `DELPHI_WALLET_ADDRESS` (the key's wallet, also your DoraHacks wallet) and `DELPHI_AGENT_ID` (your agent's name).
-3. **Register on DoraHacks** with that wallet, if not done. It takes up to 12 hours to sync.
-4. **Test the key.**
-   - `npm run feedback -- --list` should return an empty list.
-   - `npm run status` should show terms and limits.
-   - A `401` means a wrong or testnet key. `not_found` on every route means the wallet isn't registered yet.
-5. **Accept the terms.** `npm run status` prints the URL and version. Read them, then set `ACCEPT_TERMS=<version>`.
-6. **Tune in the simulator.** Run `npm run sim` on real markets with real Claude, then `npm run report -- --sim`.
+| Command | What | Time |
+|---|---|---|
+| `npm test` | typecheck + unit + contract + full chaos | ~10 min |
+| `npm run test:quick` | the same, 1 round per chaos scenario | ~5 min |
+| `npm run test:unit` | 3-item packing (incl. a 500-case property test and a local document server), note building/linting, market ranking, which errors are retried or stop the agent | 2 s |
+| `npm run test:contract` | the real SDK client against the simulator, pinned to the official API docs: terms, the 3-item limit and its error fields, idempotency, per-market cap, entry-state reasons, hourly limit, recovery of lost polls | 1 s |
+| `npm run test:chaos` | scenarios `baseline` (25% failures), `storm` (60%), `tight-hourly` (limit 4), `no-access` (404 everywhere), `no-terms`, `slow-judge` (results outlive polling). Each but `slow-judge` (which recovers through `outcomes`) ends with one calm cycle that must recover any lost result. Invariants: rules (cap, hourly, items, note, links, agent id), strategy (one side, no repeated source or note), memory (agent ↔ server 1:1, remembers exactly what was sent and the verdict, every record final) | ~7 min |
+
+Chaos randomness is seeded. A failure prints a replay command, e.g. `npm run test:chaos -- --seed=1106300e --scenario=storm`. Options: `--scenario=a,b`, `--runs=N`, `--quick`.
+
+What these tests found and fixed: pending results were never re-read after a failed poll (now `refreshPending` at the start of every cycle); the starter bridge forgot a submission when the starter's poll failed (now recorded the moment it is made); the bridge paid for research before finding out the terms were not accepted (now checks first); memory recorded the proposal instead of what was actually sent; and two simulator gaps (404 before the terms check, results only judged when polled one by one).
+
+## To start competing (live since 25 Nov 17:00 UTC, ends 11 Dec 17:00 UTC)
+
+Run `npm run preflight` after each step: it checks everything below without submitting or accepting anything.
+
+1. **Register** on DoraHacks with the wallet shown on your **Delphi profile**. Access is synced once an hour; until then every call answers `404`.
+2. **Mainnet API key** from <https://api-access.delphi.fyi/>, signed in **the same way you sign in to Delphi**, in `.env` as `DELPHI_API_ACCESS_KEY`. A testnet key answers `401` (keep it in `DELPHI_MARKETS_API_KEY` for `npm run sim`). A key exported in the shell takes the place of the one in `.env`.
+3. **Name and Claude key**: `DELPHI_AGENT_ID` and `ANTHROPIC_API_KEY`. `DELPHI_WALLET_ADDRESS` (the key's "Issued to wallet") is only for feedback.
+4. **Terms**: preflight prints the URL and version. Read them; only if you agree, set `ACCEPT_TERMS=<version>`.
+5. **First submissions**: `npm run cycle -- --review` asks before each one is sent. Then `npm run loop`.
 
 ## On and after 25 November
 
@@ -136,7 +151,7 @@ These follow the official rules:
   - `blocked` and `terms_not_accepted` stop the agent;
   - `rate_limited` ends the hour;
   - `closed`, `not_open` and `cap_reached` skip the market for good.
-- **Readable sources.** Notes follow the official structure: fact and date, source, why it matters, working. A **working.csv** is attached for calculations, and the **original document** (PDF/CSV/TXT/DOC) is copied when the judge may not be able to open the link. The link is always sent too.
+- **Readable sources.** Notes follow the official structure: fact and date, source, why it matters, working. A submission holds at most **3 items** (the note, each link and each file count as 1; official since 2026-11-23). The note and the main link always go. The last slot goes, in order, to a copy of a source the judge may not be able to open, then **working.csv** for a calculation, then a copy of a PDF/spreadsheet source, then a second link. A calculation that gets no slot is written into the note. See `src/lib/attachments.ts`.
 - **Polling.** Results are polled for up to 30 minutes, then left pending for `npm run outcomes` to re-read.
 
 ## Rules and eligibility

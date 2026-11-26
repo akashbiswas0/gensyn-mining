@@ -1,0 +1,84 @@
+[
+ {
+  "address": "0x94dbba7c9b44b788a701602ab6d919ff7b7fc38a",
+  "question": "Will turnout in Switzerland's federal vote of Nov 29, 2026 be at least 50.0%, per the Federal Chancellery?",
+  "delphiUrl": "https://delphi.fyi/market/0x94dbba7c9b44b788a701602ab6d919ff7b7fc38a",
+  "category": "votes_government",
+  "marketTier": "A",
+  "wave": 1,
+  "status": "open",
+  "odds": {
+   "yes": 0.516056,
+   "no": 0.483944
+  },
+  "closesAt": "2026-11-29T06:00:00.000Z",
+  "evidenceCutoffAt": "2026-11-28T06:00:00.000Z",
+  "pots": {
+   "judgement": "20000000",
+   "settlement": "30000000"
+  },
+  "resolutionCriteria": "Resolution criteria:\n- \"Yes, ≥50.0%\": Wins if the Federal Chancellery's official turnout figure for Switzerland's federal vote of November 29, 2026, published strictly after 2026-11-24T09:06:27.769Z and at or before 2026-11-29T14:00:00.000Z, is 50.0% or higher.\n- \"No, <50.0%\": Wins if the Federal Chancellery's official turnout figure for Switzerland's federal vote of November 29, 2026, published strictly after 2026-11-24T09:06:27.769Z and at or before 2026-11-29T14:00:00.000Z, is below 50.0%.\n\nClarifications:\n- Turnout is defined as the percentage of registered voters who cast a valid or blank ballot, as reported in the Federal Chancellery's official results for the November 29, 2026 federal vote. If the Federal Chancellery releases only a preliminary turnout figure within the window, that figure is used; if no figure is published within the window, the market is unresolvable.",
+  "dataSources": [
+   "https://www.bk.admin.ch",
+   "https://opendata.swiss"
+  ],
+  "settled": null,
+  "categoryLabel": "Votes and government"
+ },
+ {
+  "address": "0x191257a08df3a827a9a02fa54926ed9507b4497a",
+  "question": "Will Swiss voters approve the 19 Dec 2025 amendment to the War Materiel Act in the federal vote of Nov 29, 2026?",
+  "delphiUrl": "https://delphi.fyi/market/0x191257a08df3a827a9a02fa54926ed9507b4497a",
+  "category": "votes_government",
+  "marketTier": "A",
+  "wave": 1,
+  "status": "open",
+  "odds": {
+   "yes": 0.54932,
+   "no": 0.45068
+  },
+  "closesAt": "2026-11-29T06:00:00.000Z",
+  "evidenceCutoffAt": "2026-11-28T06:00:00.000Z",
+  "pots": {
+   "judgement": "20000000",
+   "settlement": "30000000"
+  },
+  "resolutionCriteria": "Resolution criteria:\n- \"Yes\": Wins if the amendment of 19 December 2025 to the Federal Act on War Material (LFMG) receives a majority of valid votes cast in the Swiss federal popular vote held on 29 November 2026, with the official result confirmed strictly after 2026-11-24T09:17:34.020Z and at or before 2026-11-29T14:00:00.000Z.\n- \"No\": Wins if the amendment of 19 December 2025 to the Federal Act on War Material (LFMG) does not receive a majority of valid votes cast in the Swiss federal popular vote held on 29 November 2026, with the official result confirmed strictly after 2026-11-24T09:17:34.020Z and at or before 2026-11-29T14:00:00.000Z.\n\nClarifications:\n- The result is determined by the share of valid popular votes (not a double majority of voters and cantons, as this is an optional referendum subject only to a popular majority).",
+  "dataSources": [
+   "https://www.admin.ch/gov/en/start/documentation/votes.html",
+   "https://www.seco.admin.ch/en/referendum-wma",
+   "https://opendata.swiss",
+   "https://www.srf.ch/news",
+   "https://www.swissinfo.ch"
+  ],
+  "settled": null,
+  "categoryLabel": "Votes and government"
+ },
+ {
+  "address": "0x55b0fabfcdf6125415854cc193ecd8cdc75bc382",
+  "question": "Will Vox win ≥60 of 350 Congress seats in Spain's Nov 29, 2026 general election, per Interior Ministry provisional results?",
+  "delphiUrl": "https://delphi.fyi/market/0x55b0fabfcdf6125415854cc193ecd8cdc75bc382",
+  "category": "local_language",
+  "marketTier": "A",
+  "wave": 1,
+  "status": "open",
+  "odds": {
+   "yes": 0.482591,
+   "no": 0.517409
+  },
+  "closesAt": "2026-11-29T06:00:00.000Z",
+  "evidenceCutoffAt": "2026-11-28T06:00:00.000Z",
+  "pots": {
+   "judgement": "20000000",
+   "settlement": "30000000"
+  },
+  "resolutionCriteria": "Resolution criteria:\n- \"Yes, ≥60 seats\": Wins if Vox is credited with 60 or more seats in the Congress of Deputies in the Spanish Interior Ministry's provisional results for the November 29, 2026 general election, published strictly after 2026-11-24T09:17:34.169Z and at or before 2026-11-29T14:00:00.000Z.\n- \"No, <60 seats\": Wins if Vox is credited with fewer than 60 seats in the Congress of Deputies in the Spanish Interior Ministry's provisional results for the November 29, 2026 general election, published strictly after 2026-11-24T09:17:34.169Z and at or before 2026-11-29T14:00:00.000Z.\n\nClarifications:\n- The seat count used is the Vox total shown in the Interior Ministry's provisional count (escrutinio provisional) at the time of settlement, not the later official count (escrutinio general) published by the Central Electoral Board.\n- If the Ministry's provisional results have not been published, or Vox's seat total is not yet reported, by 2026-11-29T14:00:00.000Z, neither outcome's condition is met within the settlement window.",
+  "dataSources": [
+   "https://infoelectoral.interior.gob.es/en/inicio",
+   "https://www.reuters.com",
+   "https://apnews.com"
+  ],
+  "settled": null,
+  "categoryLabel": "Local-language sources"
+ }
+]

@@ -37,8 +37,8 @@ Each rule is marked as one of:
 | Don't exploit bugs | Code: only the documented API through the official SDK. Anything odd is logged to `data/feedback-notes.md` to report | ✅ |
 | **Don't evade limits** | Code: reads `/limits` and entry state first; stops on hourly/daily `rate_limited`. Retries only transient errors (5xx, call-rate 429 after `Retry-After`). One idempotency key per submission, so retries never double-submit. Chaos-tested | ✅ |
 | No collusion with other entrants | You | ☐ |
-| Each submission: short note, links, up to 3 files, **one market** | Code: always `marketAddress`; link and file limits from `config/rules.json`; note length capped | ✅ |
-| **Up to 3 submissions per market** | Code: cap in rules, checked against entry state; `cap_reached` stops that market | ✅ |
+| Each submission: short note, links, files, **one market** | Code: always `marketAddress`; at most 3 items (note + links + files) from `config/rules.json`, packed in `src/lib/attachments.ts`; note length capped | ✅ |
+| **Up to 3 submissions per market** | Code: entry state decides; `cap_reached` stops that market. Slots: every submission with an id counts, except a judged `duplicate` (gives its slot back, 10 per account per 24 h) | ✅ |
 | Only before the market's **evidence cutoff** | Code: picker skips markets within 30 min of cutoff, and it's re-checked right before submitting | ✅ |
 | Rewards on other Delphi markets don't count | Code: live runs only accept competition markets | ✅ |
 | Evidence for both sides cancels out | Code: one side per market (`oneSidePerMarket`) | ✅ |
@@ -52,10 +52,10 @@ Each rule is marked as one of:
 |---|---|---|
 | Mainnet key only; send it only to Delphi; never print it | Code: key read from `.env` only; never logged; sent only to `delphi.fyi` and `feedback.delphi.fyi` | ✅ |
 | Rejected, duplicate and irrelevant submissions count toward the 3 per market; a low accepted rate means the Restricted tier | Code: quality bar (`minVerifyScore` 0.7), duplicate filter, acceptance guard pauses the agent | ✅ |
-| Manipulation verdicts are strikes; 3 in 24h block the account | Code: any manipulation verdict stops the agent; lint blocks judge-addressing text | ✅ |
-| Read entry-state before researching | Code: checked first; `blocked` stops the agent; `closed`/`not_open`/`cap_reached` are skipped for good | ✅ |
+| Manipulation verdicts and screening hits (blocked words, injection) are strikes; repeated strikes block the account. Moderation rejections flag it for review | Code: any manipulation verdict, or any rejection other than `duplicate`, in the last 24 h stops the agent (`strikeCheck`); lint blocks judge-addressing text | ✅ |
+| Entry check first (`limits`: 401/404), then terms, then entry-state before researching | Code: `readLimits` → `ensureTerms` → entry state, in both runners (the starter alone checks entry state only after research); limits re-read every cycle; only inside the competition window; `blocked` stops the agent; `closed`/`not_open`/`cap_reached` are skipped for good | ✅ |
 | Use the market's cutoff field, not your own arithmetic | Code: uses `evidenceCutoffAt`, re-checked before submit | ✅ |
-| Note ≤ 8,000 chars; ≤ 3 files, 10 MB, listed types; ≤ 8 items; field is `links[]` | Code: `config/rules.json`; the SDK sends `links[]`; attachments are type-sniffed | ✅ |
+| Note ≤ 8,000 chars; 10 MB, listed types; ≤ 3 items in total (note, each link, each file; since 2026-11-23); field is `links[]` | Code: `config/rules.json`; the SDK sends `links[]`; attachments are type-sniffed | ✅ |
 | Poll with `Retry-After`, stop after ~30 min; never loop on 429 | Code: `awaitFinal` (30 min), no retry on hourly/daily limits | ✅ |
 | Odds from other markets are never evidence | Prompt: research system prompt + official guide in every prompt | ✅ |
 | Activity minimum excludes manipulation verdicts | Code: `npm run status` counts it that way | ✅ |

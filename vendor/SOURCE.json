@@ -6,9 +6,9 @@
   },
   "docs": {
     "repo": "gensyn-ai/gensyn-delphi-skills",
-    "sha": "da9eb484d6ba8bfff314188a43351ddc86ead3b8",
-    "committedAt": "2026-11-20T12:25:12Z",
+    "sha": "9122519984b00cb510b64514c3ed28cfccc65840",
+    "committedAt": "2026-11-25T17:01:08Z",
     "version": "Docs version: 1.0 (2026-11-19)"
   },
-  "sdkInstalled": "2.4.0"
+  "sdkInstalled": "2.4.1"
 }

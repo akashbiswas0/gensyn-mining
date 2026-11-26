@@ -9,8 +9,8 @@
  *   awaitFinal()    polls to a terminal status and retries `failed` submissions that allow it
  */
 import { randomUUID } from "node:crypto";
-import { EvidenceApiError, EvidenceClient, TermsNotAcceptedError, type EvidenceMeta, type Submission, type SubmitEvidenceParams } from "@gensyn-ai/gensyn-delphi-sdk";
-import { config, requireLive } from "../config.js";
+import { EvidenceApiError, EvidenceClient, TermsNotAcceptedError, type EvidenceLimits, type EvidenceMeta, type Submission, type SubmitEvidenceParams } from "@gensyn-ai/gensyn-delphi-sdk";
+import { competitionPhase, config, requireLive, rules } from "../config.js";
 import { simFetch } from "../sim/server.js";
 import { event, info } from "./log.js";
 import * as state from "./state.js";
@@ -32,9 +32,29 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  *  which the API marks retryable with Retry-After up to ~20 min) ends the cycle instead. */
 const MAX_INLINE_WAIT_S = 60;
 
+/** The account can't use the evidence API at all: a person must act (official: "stop and tell me"). */
+export class AccessError extends Error {}
+
+/**
+ * GET /v1/limits: the official entry check, and what the account has left. Read it before each
+ * batch (the hourly limit can change). 401 and 404 here are about the ACCOUNT, not a resource.
+ */
+export async function readLimits(ev: EvidenceClient): Promise<EvidenceLimits> {
+  try {
+    const { data } = await call("limits", () => ev.getLimits());
+    return data;
+  } catch (e) {
+    if (e instanceof EvidenceApiError && e.code === "unauthorized")
+      throw new AccessError("401: the API key was refused. Create a MAINNET key at https://api-access.delphi.fyi, signed in the same way you sign in to Delphi, and set DELPHI_API_ACCESS_KEY (a key exported in the shell takes the place of the one in .env). Testnet keys do not work.");
+    if (e instanceof EvidenceApiError && e.code === "not_found")
+      throw new AccessError(`404: this account has no evidence access yet. Possible reasons: ${competitionPhase() === "before" ? `the competition has not opened (${rules.competitionWindow.startsAt}); ` : ""}you have not registered at https://dorahacks.io/hackathon/delphi-agent-competition2/detail with the wallet shown on your Delphi profile (if it was another wallet, register again); or you registered or created the Delphi account in the last hour (access is synced once an hour: try again after an hour).`);
+    throw e;
+  }
+}
+
 /** Errors that must stop the agent, not just skip a market: bad key, region block, terms. */
 export function isFatal(e: unknown): boolean {
-  return e instanceof TermsNotAcceptedError || (e instanceof EvidenceApiError && ["unauthorized", "forbidden"].includes(e.code));
+  return e instanceof AccessError || e instanceof TermsNotAcceptedError || (e instanceof EvidenceApiError && ["unauthorized", "forbidden"].includes(e.code));
 }
 
 /** Network errors (fetch throws TypeError) and short-wait retryable API errors are transient. */
@@ -90,7 +110,21 @@ export async function awaitFinal(ev: EvidenceClient, sub: Submission, maxMinutes
       const wait = current.retryAt ? Math.max(0, Date.parse(current.retryAt) - Date.now()) : 2000;
       info(`submission ${current.id} failed (${current.code ?? "?"}); retrying in ${Math.ceil(wait / 1000)}s (${retries}/${maxRetries})`);
       await sleep(wait);
-      current = (await call("retry", () => ev.retrySubmission(current.id))).data;
+      try {
+        current = (await call("retry", () => ev.retrySubmission(current.id))).data;
+      } catch (e) {
+        if (!(e instanceof EvidenceApiError)) throw e;
+        if (e.code === "not_found") {
+          // Official: 404 for anything but a failed submission, i.e. Delphi already retried it.
+          current = (await call("poll", () => ev.getSubmission(current.id))).data;
+          if (current.status === "failed") return current;
+        } else if (e.code === "rate_limited" && e.limit === "retry_backoff") {
+          const s = e.retryAfterSeconds ?? 60;
+          if (Date.now() + s * 1000 > deadline) return current; // the next cycle tries again
+          info(`submission ${current.id}: still in its retry backoff, waiting ${s}s`);
+          await sleep(s * 1000);
+        } else throw e;
+      }
       continue;
     }
     return current;
@@ -123,12 +157,19 @@ export async function ensureTerms(ev: EvidenceClient): Promise<void> {
  * official starter): transient failures are retried, submits keep one Idempotency-Key across
  * retries, and polling retries `failed` judgements that allow it.
  */
-export function resilient(ev: EvidenceClient): EvidenceClient {
+export function resilient(ev: EvidenceClient, hooks: { onSubmitted?: (sub: Submission, p: SubmitEvidenceParams) => void } = {}): EvidenceClient {
   return new Proxy(ev, {
     get(target, prop, receiver) {
       const v = Reflect.get(target, prop, receiver);
       if (typeof v !== "function") return v;
-      if (prop === "submitEvidence") return (p: SubmitEvidenceParams) => submit(target, p);
+      // Report a submission the moment it exists: polling can still fail afterwards, and a
+      // submission we forget still uses a per-market slot and fixes our side on that market.
+      if (prop === "submitEvidence")
+        return async (p: SubmitEvidenceParams) => {
+          const r = await submit(target, p);
+          hooks.onSubmitted?.(r.data, p);
+          return r;
+        };
       if (prop === "waitForSubmission")
         return async (id: string) => {
           const { data, meta } = await call("poll", () => target.getSubmission(id));

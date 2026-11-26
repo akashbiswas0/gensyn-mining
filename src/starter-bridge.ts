@@ -13,9 +13,9 @@ import { run } from "../vendor/evidence-starter/agent.js";
 import { config, describeMode } from "./config.js";
 import { findFact, type Proposal } from "./finder.js";
 import { EvidenceApiError } from "@gensyn-ai/gensyn-delphi-sdk";
-import { call, makeEvidenceClient, resilient } from "./lib/evidence.js";
+import { ensureTerms, makeEvidenceClient, readLimits, resilient } from "./lib/evidence.js";
 import { info } from "./lib/log.js";
-import { recordSubmission } from "./pipeline.js";
+import { limitReached, recordSubmission, refreshPending, submitStop } from "./pipeline.js";
 import { normalise, siteFetch } from "./stages/markets.js";
 import { rankMarkets } from "./stages/picker.js";
 import type { Fact, Market, MarketCard } from "./types.js";
@@ -29,6 +29,12 @@ async function main(): Promise<void> {
   const ourFindFact = async (card: MarketCard): Promise<Fact | null> => {
     const m = normalise(card);
     if (!m || !rankMarkets([m]).ranked.length) return null;
+    // "Check the entry state of a market before you research it": the starter checks it only after.
+    const { data: entry } = await client.getEntryState(m.address);
+    if (!entry.canSubmit || entry.remainingOnMarket <= 0) {
+      info(`${m.question}: cannot submit (${entry.reason ?? "cap_reached"}); not researching it`);
+      return null;
+    }
     const p = await findFact(m);
     if (!p) return null;
     proposals.set(m.address.toLowerCase(), { market: m, proposal: p });
@@ -37,10 +43,22 @@ async function main(): Promise<void> {
   };
 
   // The starter doesn't check limits or retry; we do both around it.
-  const client = resilient(makeEvidenceClient());
-  const { data: limits } = await call("limits", () => client.getLimits());
-  if (limits.submitsLeftThisHour <= 0 || limits.dailyCapLeft <= 0) {
-    info(`no submissions left (hour resets ${limits.hourEndsAt}, day ${limits.dailyCapResetAt}); not starting the starter`);
+  // Record each submission as soon as it is made (not only once the starter's poll returns), so a
+  // failed poll can't make us forget a used slot or the side we took. refreshPending finalises it later.
+  const client = resilient(makeEvidenceClient(), {
+    onSubmitted: (sub, p) => {
+      const hit = p.marketAddress ? proposals.get(p.marketAddress.toLowerCase()) : undefined;
+      if (hit) recordSubmission(hit.market, hit.proposal, sub);
+    },
+  });
+  // Without accepted terms the starter only shows what it "would submit", after research has been
+  // paid for. Stop before spending instead (same policy: accept only the version ACCEPT_TERMS names).
+  await readLimits(client);
+  await ensureTerms(client);
+  await refreshPending(client);
+  const stop = submitStop() ?? limitReached(await readLimits(client));
+  if (stop) {
+    info(`${stop}; not starting the starter`);
     return;
   }
 

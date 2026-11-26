@@ -33,7 +33,7 @@ async function main(): Promise<void> {
     const ev = makeEvidenceClient();
     const [{ data: terms }, { data: limits }] = await Promise.all([ev.getTerms(), ev.getLimits()]);
     console.log(`\nTerms ${terms.version}: ${terms.acceptedAt ? `accepted ${terms.acceptedAt}` : `NOT accepted. Read ${terms.url}, then set ACCEPT_TERMS=${terms.version}`}`);
-    console.log(`Limits: ${limits.submitsLeftThisHour} left this hour, ${limits.dailyCapLeft} today`);
+    console.log(`Limits: ${limits.submitsLeftThisHour} submissions left this hour, daily reward cap left ${limits.dailyCapLeft}`);
   } catch (e) {
     console.log(`\n(Delphi API not reachable: ${(e as Error).message})`);
   }

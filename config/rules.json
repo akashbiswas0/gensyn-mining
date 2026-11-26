@@ -1,9 +1,14 @@
 {
-  "_doc": "Competition rules and agent policy. Edit this file (not code) when a rule changes. Source of the (rule) values: gensyn-delphi-skills reference/competition.md + evidence-api.md, docs version 1.0 (2026-11-19).",
+  "_doc": "Competition rules and agent policy. Edit this file (not code) when a rule changes. Source of the (rule) values: gensyn-delphi-skills reference/competition.md + evidence-api.md, docs version 1.0, changelog to 2026-11-25, and competition.delphi.fyi/skill.md.",
+  "competitionWindow": {
+    "startsAt": "2026-11-25T17:00:00Z",
+    "endsAt": "2026-12-11T17:00:00Z"
+  },
   "maxSubmissionsPerMarket": 3,
+  "duplicateGiveBacksPer24h": 10,
   "maxLinksPerSubmission": 3,
   "maxFilesPerSubmission": 3,
-  "maxItemsPerSubmission": 8,
+  "maxItemsPerSubmission": 3,
   "maxFileBytesTotal": 10485760,
   "allowedFileTypes": [
     "image/png",
@@ -33,6 +38,7 @@
   "oneSidePerMarket": true,
   "submissionsPerMarketPerCycle": 1,
   "minVerifyScore": 0.7,
+  "maxDuplicationRisk": 0.5,
   "acceptanceGuard": {
     "window": 6,
     "minAcceptedRate": 0.5

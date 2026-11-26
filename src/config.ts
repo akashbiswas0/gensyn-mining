@@ -28,6 +28,10 @@ const effort = (v: string, d: Effort): Effort =>
   (["low", "medium", "high", "xhigh", "max"] as const).includes(v as Effort) ? (v as Effort) : d;
 
 export interface Rules {
+  /** Only submissions inside this window count (and the API is closed to agents before it). */
+  competitionWindow: { startsAt: string; endsAt: string };
+  /** A judged `duplicate` gives its slot back, at most this often per account in 24 hours. */
+  duplicateGiveBacksPer24h: number;
   maxSubmissionsPerMarket: number;
   maxLinksPerSubmission: number;
   maxFilesPerSubmission: number;
@@ -45,6 +49,8 @@ export interface Rules {
   oneSidePerMarket: boolean;
   submissionsPerMarketPerCycle: number;
   minVerifyScore: number;
+  /** Candidates whose duplication risk is at or above this are skipped outright. */
+  maxDuplicationRisk: number;
   backoffHoursWhenNothingFound: number;
 }
 
@@ -79,11 +85,11 @@ export const config = {
 
   /** Reading Delphi markets with the SDK. Competition markets are Delphi MAINNET markets. For
    *  testing with --markets=delphi you can read another network with its own key. */
-  delphiMarketsNetwork: (env("DELPHI_MARKETS_NETWORK") || "mainnet") as "mainnet" | "testnet",
+  delphiMarketsNetwork: (marketSource === "competition" ? "mainnet" : env("DELPHI_MARKETS_NETWORK") || "mainnet") as "mainnet" | "testnet",
   delphiMarketsApiKey: env("DELPHI_MARKETS_API_KEY", "DELPHI_API_ACCESS_KEY"),
 
-  researchModel: env("RESEARCH_MODEL") || "claude-opus-5-5",
-  verifyModel: env("VERIFY_MODEL") || "claude-opus-5-5",
+  researchModel: env("RESEARCH_MODEL") || "gpt-5.6-sol",
+  verifyModel: env("VERIFY_MODEL") || "gpt-5.6-sol",
   researchEffort: effort(env("RESEARCH_EFFORT"), "high"),
   verifyEffort: effort(env("VERIFY_EFFORT"), "high"),
   get agentModel() {
@@ -101,11 +107,17 @@ export const config = {
   fixtureMarkets: env("FIXTURE_MARKETS") || "fixtures/markets.sample.json",
 };
 
+/** "before" / "open" / "after" the competition window (rules.competitionWindow). */
+export function competitionPhase(now = Date.now()): "before" | "open" | "after" {
+  const w = rules.competitionWindow;
+  return now < Date.parse(w.startsAt) ? "before" : now >= Date.parse(w.endsAt) ? "after" : "open";
+}
+
 export function describeMode(): string {
   return [
     `markets: ${config.marketSource}${config.marketSource === "delphi" ? ` (${config.delphiMarketsNetwork})` : ""}`,
     `submissions: ${config.sim ? "SIMULATOR" : "LIVE Delphi"}`,
-    `research: ${config.offline ? "canned" : `Claude ${config.researchModel}`}`,
+    `research: ${config.offline ? "canned" : `OpenAI ${config.researchModel}`}`,
   ].join(" · ");
 }
 

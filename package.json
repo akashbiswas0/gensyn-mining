@@ -2,6 +2,7 @@
   "name": "delphi-evidence-agent",
   "version": "1.0.0",
   "scripts": {
+    "preflight": "tsx src/preflight.ts",
     "cycle": "tsx src/agent.ts",
     "loop": "tsx src/agent.ts --loop",
     "status": "tsx src/status.ts",
@@ -12,7 +13,11 @@
     "sim": "tsx src/agent.ts --sim --markets=delphi",
     "sim:fixture": "tsx src/agent.ts --sim --markets=fixture",
     "starter:sim": "tsx src/starter-bridge.ts --sim --markets=delphi",
+    "test": "npm run typecheck && npm run test:unit && npm run test:contract && npm run test:chaos",
+    "test:unit": "tsx --test --test-reporter=spec tests/unit.test.ts",
+    "test:contract": "tsx --test --test-reporter=spec tests/contract.test.ts",
     "test:chaos": "tsx scripts/chaos-test.ts",
+    "test:quick": "npm run typecheck && npm run test:unit && npm run test:contract && tsx scripts/chaos-test.ts --quick",
     "report": "tsx src/report.ts",
     "outcomes": "tsx src/outcomes.ts",
     "sync-official": "tsx scripts/sync-starter.ts",
@@ -22,8 +27,9 @@
   "private": true,
   "dependencies": {
     "@anthropic-ai/sdk": "^1.11.0",
-    "@gensyn-ai/gensyn-delphi-sdk": "^2.4.0",
+    "@gensyn-ai/gensyn-delphi-sdk": "^2.4.1",
     "dotenv": "^18.0.10",
+    "openai": "^7.64.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {

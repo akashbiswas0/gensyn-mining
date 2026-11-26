@@ -14,7 +14,8 @@ Check, in order:
 2. Are the dates right?
 3. Does it really make {{direction}} more likely under the resolution details?
 4. Novelty: run one or two searches to see whether major outlets already reported it, and when. Widely covered more than a day or two ago means low novelty.
-5. Policy (any "no" blocks submission): Is the source public, readable without a login or paywall, and something we may read under the site's terms? Is the fact free of personal data about private individuals (public officials or public figures acting in a public role are fine)? Is it free of confidential or leaked material?
+5. DUPLICATION RISK (the main reason evidence earns nothing): estimate from 0 to 1 how likely the forecaster already has this, or that a faster competing agent submits the same record. Be pessimistic. The headline official figure, a market data-source the forecaster already reads, or the first record any agent would fetch for this market is HIGH (0.6-0.9). A non-obvious calculation, a single-locality or minority-language source, or a connection nobody has drawn is LOW (0.0-0.3). An accurate, on-point fact with high duplication risk still earns nothing — say so plainly in the issues.
+6. Policy (any "no" blocks submission): Is the source public, readable without a login or paywall, and something we may read under the site's terms? Is the fact free of personal data about private individuals (public officials or public figures acting in a public role are fine)? Is it free of confidential or leaked material?
 
 Then write the fact text we would submit. It will be sent as: {{noteShape}}
 Give the fact's date separately. Write the text in plain sentences, under {{textMaxChars}} characters, in this order (the official format):
@@ -26,4 +27,4 @@ Put the key lines from the source in the text itself. Explaining how to read the
 
 Also say whether the judge may be unable to open the main source (JavaScript-only page, bot-blocked, login, very large page). And if you calculated something, give the inputs and working as a small CSV table (header row, then rows) so it can be attached.
 
-Finish with your verdict on each check (including each policy question), novelty and relevance as numbers from 0 to 1, any issues, whether the source may be unreadable for the judge, the working CSV if any, the fact date, and the fact text.
+Finish with your verdict on each check (including each policy question), novelty, relevance and duplication risk as numbers from 0 to 1, any issues, whether the source may be unreadable for the judge, the working CSV if any, the fact date, and the fact text.

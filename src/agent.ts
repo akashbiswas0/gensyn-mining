@@ -11,7 +11,7 @@
  */
 import { config, describeMode } from "./config.js";
 import { checkOfficialDocs } from "./lib/docs-check.js";
-import { ensureTerms, isFatal, makeEvidenceClient } from "./lib/evidence.js";
+import { ensureTerms, isFatal, makeEvidenceClient, readLimits } from "./lib/evidence.js";
 import { BudgetExceeded } from "./lib/llm.js";
 import { event, info } from "./lib/log.js";
 import { promptVersion } from "./lib/version.js";
@@ -21,6 +21,7 @@ async function main(): Promise<void> {
   info(`${describeMode()} · agent ${config.agentId} · prompt version ${promptVersion()}`);
   if (!config.offline) await checkOfficialDocs();
   const ev = makeEvidenceClient();
+  await readLimits(ev); // official order: can this account enter (401/404)? then the terms, then research
   await ensureTerms(ev);
 
   if (!config.loop) {

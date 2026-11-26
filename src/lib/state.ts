@@ -15,6 +15,8 @@ export interface SubmissionRecord {
   status: string;
   verdict: string | null;
   reason: string | null;
+  /** Rejected submissions: which check failed (`duplicate`, a screening or moderation code). */
+  code?: string;
   bounty: string | null;
   bountyState: string | null;
   zeroPayReason?: string;
@@ -84,3 +86,25 @@ export function addSpend(usd: number): void {
 }
 
 export const spentToday = () => load().spendByDay[today()] ?? 0;
+
+const DAY = 864e5;
+/** The judged `duplicate` verdicts that gave their slot back (at most `limit` in any 24 h). */
+function givenBack(limit: number): Set<string> {
+  const dups = Object.values(load().markets)
+    .flatMap((m) => m.submissions)
+    .filter((r) => r.status === "judged" && /^duplicate$/i.test(r.verdict ?? ""))
+    .sort((a, b) => a.at.localeCompare(b.at));
+  const out: SubmissionRecord[] = [];
+  for (const r of dups) if (out.filter((o) => Date.parse(r.at) - Date.parse(o.at) < DAY).length < limit) out.push(r);
+  return new Set(out.map((r) => r.id));
+}
+
+/**
+ * Slots used on a market. Every submission with an id uses one, whatever its verdict, except a
+ * JUDGED `duplicate`, which gives its slot back (official, 2026-11-25). A submission REJECTED with
+ * code `duplicate` keeps its count. Entry-state stays the authority; this only ranks markets.
+ */
+export function slotsUsed(address: string, giveBackLimit: number): number {
+  const back = givenBack(giveBackLimit);
+  return market(address).submissions.filter((r) => !back.has(r.id)).length;
+}
